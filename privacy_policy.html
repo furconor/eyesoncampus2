@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EyesOnCampus - Gizlilik Politikası & EULA</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #050507; color: #F0EDE8; font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.7; }
+        .container { max-width: 720px; margin: 0 auto; padding: 40px 24px; }
+        h1 { color: #E8C97A; font-size: 28px; font-weight: 300; margin-bottom: 8px; letter-spacing: 2px; }
+        h2 { color: #E8C97A; font-size: 20px; font-weight: 400; margin: 32px 0 16px; border-bottom: 1px solid rgba(255,255,255,0.07); padding-bottom: 8px; }
+        h3 { color: #C4A55A; font-size: 15px; margin: 20px 0 8px; }
+        p, li { color: #9896A4; font-size: 14px; margin-bottom: 12px; }
+        ul { padding-left: 20px; }
+        .subtitle { color: #6B6878; font-size: 12px; letter-spacing: 1px; margin-bottom: 32px; }
+        .section { background: #1A1A24; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 24px; margin-bottom: 24px; }
+        .lang-switch { display: flex; gap: 8px; margin-bottom: 24px; }
+        .lang-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); background: #1A1A24; color: #6B6878; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .lang-btn.active { background: #E8C97A; color: #0A0800; border-color: #E8C97A; }
+        .hidden { display: none; }
+        .updated { color: #6B6878; font-size: 11px; margin-top: 24px; font-style: italic; }
+        a { color: #E8C97A; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="text-align:center; font-size: 48px; margin-bottom: 16px;">👁</div>
+        <h1 style="text-align:center;">EyesOnCampus</h1>
+        <p class="subtitle" style="text-align:center;">ÜNİVERSİTE BULUŞMA UYGULAMASI</p>
+
+        <div class="lang-switch">
+            <button class="lang-btn active" onclick="switchLang('tr')" id="btn-tr">Türkçe</button>
+            <button class="lang-btn" onclick="switchLang('en')" id="btn-en">English</button>
+        </div>
+
+        <!-- TURKISH -->
+        <div id="content-tr">
+            <div class="section">
+                <h2>Gizlilik Politikası</h2>
+                <h3>1. Veri Toplama</h3>
+                <p>Sadece profilinizi oluşturmak ve eşleşme sağlamak için gerekli olan e-posta, isim ve kampüs bölgesi bilgilerini topluyoruz.</p>
+                <h3>2. Konum Bilgisi</h3>
+                <p>Konumunuz tam koordinat olarak paylaşılmaz; sadece seçtiğiniz kampüs bölgesi (örn: Merkez Kafe) bazında diğer kullanıcılara gösterilir.</p>
+                <h3>3. Veri Paylaşımı</h3>
+                <p>Verileriniz üçüncü şahıslarla reklam veya pazarlama amacıyla paylaşılmaz.</p>
+                <h3>4. Hesap Silme</h3>
+                <p>Hesabınızı sildiğinizde, tüm mesajlarınız, profil bilgileriniz ve profil fotoğraflarınız veritabanımızdan kalıcı olarak temizlenir.</p>
+                <h3>5. Güvenlik</h3>
+                <p>Verileriniz Supabase altyapısı ile şifrelenmiş olarak saklanmaktadır.</p>
+                <h3>6. Yaş Sınırı</h3>
+                <p>Bu uygulama sadece 18 yaş ve üzeri kullanıcılar içindir. Kayıt sırasında yaş doğrulaması yapılmaktadır.</p>
+                <h3>7. İletişim</h3>
+                <p>Gizlilik ile ilgili sorularınız için: <a href="mailto:eyesonmecorp@gmail.com">eyesonmecorp@gmail.com</a></p>
+                <p class="updated">Son güncelleme: Mart 2026</p>
+            </div>
+
+            <div class="section">
+                <h2>Son Kullanıcı Lisans Sözleşmesi (EULA)</h2>
+                <h3>1. Kabul</h3>
+                <p>Bu uygulamayı kullanarak, bu sözleşme şartlarını kabul etmiş sayılırsınız.</p>
+                <h3>2. Kullanıcı İçeriği</h3>
+                <p>Kullanıcılar tarafından oluşturulan içeriklerden (UGC) EyesOnCampus sorumlu değildir. Ancak, topluluk kurallarını ihlal eden içerikler 24 saat içinde kaldırılacaktır.</p>
+                <h3>3. Kötüye Kullanım</h3>
+                <p>Taciz, nefret söylemi veya uygunsuz içerik paylaşan kullanıcıların hesapları kalıcı olarak engellenecektir.</p>
+                <h3>4. Güvenlik</h3>
+                <p>Diğer kullanıcıları bildirme (report) ve engelleme (block) özellikleri tüm kullanıcılar için aktiftir.</p>
+                <h3>5. Sorumluluk Reddi</h3>
+                <p>Uygulama "olduğu gibi" sunulmaktadır. Kampüs içi etkileşimlerde temel güvenlik kurallarına uymanız önerilir.</p>
+                <h3>6. Yaş Kısıtlaması</h3>
+                <p>Bu uygulama 18 yaş altı bireyler tarafından kullanılamaz.</p>
+                <p class="updated">Son güncelleme: Mart 2026</p>
+            </div>
+        </div>
+
+        <!-- ENGLISH -->
+        <div id="content-en" class="hidden">
+            <div class="section">
+                <h2>Privacy Policy</h2>
+                <h3>1. Data Collection</h3>
+                <p>We only collect email, name, and campus zone information necessary to create your profile and provide matching.</p>
+                <h3>2. Location Information</h3>
+                <p>Your location is not shared as exact coordinates; it is only shown to other users based on your selected campus zone (e.g., Central Cafe).</p>
+                <h3>3. Data Sharing</h3>
+                <p>Your data is not shared with third parties for advertising or marketing purposes.</p>
+                <h3>4. Account Deletion</h3>
+                <p>When you delete your account, all your messages, profile information, and profile photos are permanently removed from our database.</p>
+                <h3>5. Security</h3>
+                <p>Your data is stored encrypted with Supabase infrastructure.</p>
+                <h3>6. Age Restriction</h3>
+                <p>This application is only available for users aged 18 and above. Age verification is performed during registration.</p>
+                <h3>7. Contact</h3>
+                <p>For privacy-related questions: <a href="mailto:eyesonmecorp@gmail.com">eyesonmecorp@gmail.com</a></p>
+                <p class="updated">Last updated: March 2026</p>
+            </div>
+
+            <div class="section">
+                <h2>End User License Agreement (EULA)</h2>
+                <h3>1. Acceptance</h3>
+                <p>By using this application, you agree to the terms of this agreement.</p>
+                <h3>2. User Content</h3>
+                <p>EyesOnCampus is not responsible for User Generated Content (UGC). However, content that violates community guidelines will be removed within 24 hours.</p>
+                <h3>3. Misuse</h3>
+                <p>Accounts of users who share harassment, hate speech, or inappropriate content will be permanently blocked.</p>
+                <h3>4. Safety</h3>
+                <p>Features to report and block other users are active for all users.</p>
+                <h3>5. Disclaimer</h3>
+                <p>The application is provided "as is". It is recommended to follow basic safety rules during on-campus interactions.</p>
+                <h3>6. Age Restriction</h3>
+                <p>This application may not be used by individuals under the age of 18.</p>
+                <p class="updated">Last updated: March 2026</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchLang(lang) {
+            document.getElementById('content-tr').classList.toggle('hidden', lang !== 'tr');
+            document.getElementById('content-en').classList.toggle('hidden', lang !== 'en');
+            document.getElementById('btn-tr').classList.toggle('active', lang === 'tr');
+            document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+        }
+    </script>
+</body>
+</html>
