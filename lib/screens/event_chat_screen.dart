@@ -51,18 +51,6 @@ class _EventChatScreenState extends State<EventChatScreen> {
     FocusScope.of(context).requestFocus(_msgFocusNode);
   }
 
-  void _onShare(EventMessage msg) {
-    HapticFeedback.mediumImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Bağlantı panoya kopyalandı!'),
-        backgroundColor: AppTheme.accent,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
   void _onMoreOptions(EventMessage msg, String myUserId) {
     HapticFeedback.lightImpact();
     final isMe = msg.sender.id == myUserId;
@@ -417,11 +405,6 @@ class _EventChatScreenState extends State<EventChatScreen> {
                           ),
                         ],
                       ),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => _onShare(msg),
-                      child: const Icon(Icons.share_outlined, size: 16, color: Colors.white38),
                     ),
                   ],
                 ),

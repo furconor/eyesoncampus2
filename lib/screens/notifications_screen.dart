@@ -109,6 +109,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // Determine visual style based on notification type
     final isMatch = notif.type == NotificationType.match;
     final isLook = notif.type == NotificationType.look;
+    final isMessage = notif.type == NotificationType.message;
     
     // Blur identity if it's an anonymous look (wink) that hasn't resulted in a match yet
     final blurIdentity = isLook;
@@ -121,7 +122,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         blur: 15,
         border: Border.all(
           color: notif.isNew 
-              ? (isMatch ? AppTheme.red.withOpacity(0.5) : AppTheme.accent.withOpacity(0.5))
+              ? AppTheme.accent.withOpacity(0.5)
               : Colors.white12,
           width: notif.isNew ? 1.5 : 1,
         ),
@@ -148,7 +149,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ),
                     if (isLook && notif.isNew)
                       _buildLookAction(context),
-                    if (isMatch)
+                    if (isMatch || isMessage)
                       _buildMatchAction(context, notif),
                   ],
                 ),
@@ -159,11 +160,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: isMatch ? AppTheme.red : AppTheme.accent,
+                    color: AppTheme.accent,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: (isMatch ? AppTheme.red : AppTheme.accent).withOpacity(0.5),
+                        color: AppTheme.accent.withOpacity(0.5),
                         blurRadius: 6,
                         spreadRadius: 1,
                       ),
@@ -264,11 +265,38 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           children: [
             TextSpan(
               text: '${notif.relatedUser?.name ?? 'Biri'} ',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.red),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent),
             ),
             const TextSpan(text: 'ile eşleştin! Karşılıklı göz teması kuruldu.'),
           ],
         ),
+      );
+    }
+
+    if (notif.type == NotificationType.message) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichText(
+            text: TextSpan(
+              style: const TextStyle(fontSize: 15, color: Colors.white, height: 1.3),
+              children: [
+                TextSpan(
+                  text: '${notif.relatedUser?.name ?? 'Biri'} ',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent),
+                ),
+                const TextSpan(text: 'sana yeni bir mesaj gönderdi:'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '"${notif.message}"',
+            style: const TextStyle(fontSize: 14, color: Colors.white70, fontStyle: FontStyle.italic),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       );
     }
 
@@ -334,7 +362,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [AppTheme.red, Color(0xFFFF4D6D)]),
+            color: AppTheme.accent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Row(

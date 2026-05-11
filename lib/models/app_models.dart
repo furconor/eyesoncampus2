@@ -65,7 +65,7 @@ class Conversation {
   AppMessage? get lastMessage => messages.isNotEmpty ? messages.last : null;
 }
 
-enum NotificationType { look, match, system, achievement }
+enum NotificationType { look, match, message, system, achievement }
 
 class AppNotification {
   final String id;

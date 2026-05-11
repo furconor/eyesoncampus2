@@ -543,16 +543,63 @@ class _EventsScreenState extends State<EventsScreen> {
           Positioned(
             top: 16,
             right: 16,
-            child: GestureDetector(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                Navigator.pop(context);
-              },
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                child: const Icon(Icons.close_rounded, size: 20, color: Colors.white),
-              ),
+            child: Row(
+              children: [
+                if (event.createdBy == provider.currentUser?.id)
+                  GestureDetector(
+                    onTap: () async {
+                      HapticFeedback.heavyImpact();
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          backgroundColor: AppTheme.surface,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          title: const Text('Etkinliği İptal Et', style: TextStyle(color: Colors.white, fontFamily: 'Cormorant Garamond', fontSize: 22, fontWeight: FontWeight.bold)),
+                          content: const Text(
+                            'Bu etkinliği tamamen iptal etmek ve kaldırmak istediğine emin misin?',
+                            style: TextStyle(color: Colors.white70, fontSize: 14),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Hayır', style: TextStyle(color: Colors.white54)),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Evet, Kaldır', style: TextStyle(color: AppTheme.red, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        final success = await provider.finishEvent(event.id);
+                        if (success && context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Etkinlik kaldırıldı.'), backgroundColor: AppTheme.accent));
+                        } else if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Etkinlik kaldırılamadı.'), backgroundColor: AppTheme.red));
+                        }
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                      child: const Icon(Icons.delete_outline_rounded, size: 20, color: AppTheme.red),
+                    ),
+                  ),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.pop(context);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, size: 20, color: Colors.white),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

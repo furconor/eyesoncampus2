@@ -1254,19 +1254,40 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
     
     _notifications.clear();
     
-    // 1. Matches as notifications
+    // 1. Matches and Messages as notifications
     for (var conv in _conversations) {
-      final nid = 'n_match_${conv.id}';
+      final nidMatch = 'n_match_${conv.id}';
+      final tsMatch = conv.messages.isNotEmpty ? conv.messages.first.timestamp : (existingNotifs[nidMatch]?.timestamp ?? DateTime.now());
+
       _notifications.add(AppNotification(
-        id: nid,
+        id: nidMatch,
         type: NotificationType.match,
         relatedUser: conv.otherUser,
         title: 'Yeni Eşleşme',
         message: 'ile eşleştiniz! Sohbet başlatabilirsiniz.',
         location: conv.locationTag,
-        timestamp: existingNotifs[nid]?.timestamp ?? DateTime.now(),
+        timestamp: tsMatch,
+        isNew: existingNotifs[nidMatch]?.isNew ?? conv.messages.isEmpty,
       ));
+
+      final lastMsg = conv.lastMessage;
+      if (lastMsg != null && lastMsg.senderId != _currentUser?.id) {
+          final nidMsg = 'n_msg_${conv.id}';
+          _notifications.add(AppNotification(
+            id: nidMsg,
+            type: NotificationType.message,
+            relatedUser: conv.otherUser,
+            title: 'Yeni Mesaj',
+            message: lastMsg.text,
+            location: conv.locationTag,
+            timestamp: lastMsg.timestamp,
+            isNew: conv.unreadCount > 0,
+          ));
+      }
     }
+    
+    // Sort notifications by timestamp descending
+    _notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     
     final prefs = await SharedPreferences.getInstance();
     final awardedWinks = prefs.getStringList('awarded_winks') ?? [];
@@ -1492,6 +1513,20 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
                  body: lastMsg.text,
                );
                HapticFeedback.lightImpact();
+
+               final nidMsg = 'n_msg_${conv.id}';
+               _notifications.removeWhere((n) => n.id == nidMsg);
+               _notifications.insert(0, AppNotification(
+                 id: nidMsg,
+                 type: NotificationType.message,
+                 relatedUser: conv.otherUser,
+                 title: 'Yeni Mesaj',
+                 message: lastMsg.text,
+                 location: conv.locationTag,
+                 timestamp: lastMsg.timestamp,
+                 isNew: true,
+               ));
+               _notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
             }
             notifyListeners();
           }

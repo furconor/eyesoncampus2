@@ -225,14 +225,24 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     const Icon(Icons.location_on_rounded, size: 16, color: AppTheme.accent),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        isCheckedIn ? me?.campusZone ?? 'Bilinmiyor' : 'Şu an Neredesin?',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: isCheckedIn ? FontWeight.bold : FontWeight.normal,
-                          color: isCheckedIn ? AppTheme.accent : Colors.white54,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isCheckedIn)
+                            const Text(
+                              'Şu anda buradasın:',
+                              style: TextStyle(fontSize: 10, color: Colors.white54, fontFamily: 'Space Mono'),
+                            ),
+                          Text(
+                            isCheckedIn ? me?.campusZone ?? 'Bilinmiyor' : 'Neredeyim?',
+                            style: TextStyle(
+                              fontSize: isCheckedIn ? 16 : 14,
+                              fontWeight: isCheckedIn ? FontWeight.bold : FontWeight.normal,
+                              color: isCheckedIn ? AppTheme.accent : Colors.white54,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
                     ),
                     Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: isCheckedIn ? AppTheme.accent : Colors.white38),
@@ -321,10 +331,48 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     child: GestureDetector(
-                      onTap: () {
-                        provider.checkIn(venue);
-                        Navigator.pop(context);
+                      onTap: () async {
                         HapticFeedback.mediumImpact();
+                        Navigator.pop(context);
+                        final errorMsg = await provider.checkIn(venue);
+                        if (errorMsg != null && context.mounted) {
+                          if (errorMsg.contains('enerjin')) {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                backgroundColor: AppTheme.surface,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                title: const Column(
+                                  children: [
+                                    Icon(Icons.bolt_rounded, color: AppTheme.accent, size: 48),
+                                    SizedBox(height: 16),
+                                    Text('Enerjin Bitti!', style: TextStyle(color: Colors.white, fontFamily: 'Cormorant Garamond', fontSize: 28, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                content: const Text(
+                                  'Mekan değiştirmek için yeterli enerjin (PWR) kalmadı. Enerjinin dolmasını bekleyebilir veya kampüs etkinliklerine katılarak enerji kazanabilirsin.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+                                ),
+                                actions: [
+                                  Center(
+                                    child: TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      style: TextButton.styleFrom(
+                                        backgroundColor: AppTheme.surface2,
+                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                      child: const Text('Anladım', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold, fontFamily: 'Space Mono')),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: AppTheme.red));
+                          }
+                        }
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 10),

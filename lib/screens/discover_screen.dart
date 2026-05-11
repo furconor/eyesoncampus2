@@ -282,7 +282,42 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         final error = await provider.checkIn(venue);
                         if (context.mounted) {
                           if (error != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error), backgroundColor: AppTheme.red));
+                            if (error.contains('enerjin')) {
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: AppTheme.surface,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                  title: const Column(
+                                    children: [
+                                      Icon(Icons.bolt_rounded, color: AppTheme.accent, size: 48),
+                                      SizedBox(height: 16),
+                                      Text('Enerjin Bitti!', style: TextStyle(color: Colors.white, fontFamily: 'Cormorant Garamond', fontSize: 28, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                  content: const Text(
+                                    'Mekan değiştirmek için yeterli enerjin (PWR) kalmadı. Enerjinin dolmasını bekleyebilir veya kampüs etkinliklerine katılarak enerji kazanabilirsin.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+                                  ),
+                                  actions: [
+                                    Center(
+                                      child: TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        style: TextButton.styleFrom(
+                                          backgroundColor: AppTheme.surface2,
+                                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        ),
+                                        child: const Text('Anladım', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold, fontFamily: 'Space Mono')),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error), backgroundColor: AppTheme.red));
+                            }
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mekana giriş yapıldı!'), backgroundColor: AppTheme.accent));
                           }

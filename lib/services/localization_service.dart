@@ -58,7 +58,7 @@ class LocalizationService {
       'onboarding_desc_3': 'Sadece .edu e-postasıyla üye\nolunabilir. Kampüsünüzdeki gerçek\nkişilerle güvenle tanışın.',
       'onboarding_title_4': 'Tamamen\nGüvenli',
       'onboarding_desc_4': 'Sen onaylamadan kimse sana\nmesaj atamaz. Sadece karşılıklı\nilgiyle mesajlaşma başlar.',
-      'onboarding_start': 'HADİ BAŞLAYALIM 👁',
+      'onboarding_start': 'HADİ BAŞLAYALIM',
       'onboarding_next': 'İLERİ →',
       'onboarding_skip': 'GEÇ',
       // Settings
@@ -209,7 +209,7 @@ class LocalizationService {
       'onboarding_desc_3': 'Exclusive to .edu addresses.\nConnect safely with verified\npeers from your university.',
       'onboarding_title_4': 'Completely\nSafe',
       'onboarding_desc_4': 'No one can message you\nwithout your approval. Chat\nstarts only on mutual interest.',
-      'onboarding_start': "LET'S START 👁",
+      'onboarding_start': "LET'S START",
       'onboarding_next': 'NEXT →',
       'onboarding_skip': 'SKIP',
       // Settings

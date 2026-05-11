@@ -910,9 +910,11 @@ class _AuthScreenState extends State<AuthScreen> {
     TextAlign textAlign = TextAlign.start,
     double? letterSpacing,
     double? fontSize,
+    bool readOnly = false,
   }) {
     return TextField(
       controller: controller,
+      readOnly: readOnly,
       keyboardType: keyboardType,
       obscureText: obscureText,
       textAlign: textAlign,
@@ -943,7 +945,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildPremiumButton({required VoidCallback onPressed, required String label}) {
+  Widget _buildPremiumButton({required VoidCallback? onPressed, required String label}) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -1040,7 +1042,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
           const SizedBox(height: 20),
           _buildInputLabel(provider.t('full_name')),
-          _buildPremiumTextField(controller: _nameController, hint: provider.t('full_name'), icon: Icons.person_outline),
+          _buildPremiumTextField(controller: _nameController, hint: provider.t('full_name'), icon: Icons.person_outline, readOnly: true),
           const SizedBox(height: 20),
           _buildInputLabel(provider.t('dept')),
           _buildPremiumTextField(controller: _deptController, hint: 'Örn: Bilgisayar Müh.', icon: Icons.school_outlined),
@@ -1090,7 +1092,6 @@ class _AuthScreenState extends State<AuthScreen> {
             onChanged: (v) => setState(() => _confirmedAge = v ?? false),
             child: Row(
               children: [
-                const Text('🔞 ', style: TextStyle(fontSize: 16)),
                 Expanded(
                   child: Text(
                     provider.currentLanguage == 'tr' 
@@ -1105,7 +1106,7 @@ class _AuthScreenState extends State<AuthScreen> {
           
           const SizedBox(height: 48),
           _buildPremiumButton(
-            onPressed: _completeRegistration,
+            onPressed: (_acceptedTerms && _confirmedAge) ? _completeRegistration : null,
             label: provider.t('complete_reg'),
           ),
         ],
