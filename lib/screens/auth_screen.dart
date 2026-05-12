@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../providers/app_data_provider.dart';
 import '../providers/supabase_service.dart';
@@ -256,8 +257,11 @@ class _AuthScreenState extends State<AuthScreen> {
     
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.bg,
+      builder: (ctx) {
+        bool obscurePass = true;
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            backgroundColor: AppTheme.bg,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: AppTheme.border.withOpacity(0.5))),
         title: const Text(
           'GİRİŞ YAP', 
@@ -270,7 +274,16 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 16),
             _buildPremiumTextField(controller: emailCtrl, hint: 'E-posta adresi', icon: Icons.email_outlined),
             const SizedBox(height: 16),
-            _buildPremiumTextField(controller: passCtrl, hint: 'Şifre', icon: Icons.lock_outline, obscureText: true),
+            _buildPremiumTextField(
+              controller: passCtrl, 
+              hint: 'Şifre', 
+              icon: Icons.lock_outline, 
+              obscureText: obscurePass,
+              suffixIcon: IconButton(
+                icon: Icon(obscurePass ? Icons.visibility_off : Icons.visibility, color: AppTheme.muted, size: 20),
+                onPressed: () => setDialogState(() => obscurePass = !obscurePass),
+              ),
+            ),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
@@ -385,6 +398,8 @@ class _AuthScreenState extends State<AuthScreen> {
           const SizedBox(height: 8),
         ],
       ),
+        );
+      },
     );
   }
 
@@ -396,6 +411,8 @@ class _AuthScreenState extends State<AuthScreen> {
     int step = 0; // 0: email, 1: otp, 2: new password
     String userEmail = '';
     bool isLoading = false;
+    bool obscureNewPass = true;
+    bool obscureConfirmPass = true;
 
     showModalBottomSheet(
       context: context,
@@ -507,7 +524,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         if (step == 2) ...[
                           TextField(
                             controller: newPassCtrl,
-                            obscureText: true,
+                            obscureText: obscureNewPass,
                             style: const TextStyle(color: AppTheme.text),
                             decoration: InputDecoration(
                               hintText: 'Yeni şifre (en az 6 karakter)',
@@ -515,6 +532,10 @@ class _AuthScreenState extends State<AuthScreen> {
                               filled: true,
                               fillColor: AppTheme.surface3,
                               prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.muted, size: 20),
+                              suffixIcon: IconButton(
+                                icon: Icon(obscureNewPass ? Icons.visibility_off : Icons.visibility, color: AppTheme.muted, size: 20),
+                                onPressed: () => setSheetState(() => obscureNewPass = !obscureNewPass),
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
                                 borderSide: const BorderSide(color: AppTheme.border),
@@ -524,7 +545,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           const SizedBox(height: 16),
                           TextField(
                             controller: confirmPassCtrl,
-                            obscureText: true,
+                            obscureText: obscureConfirmPass,
                             style: const TextStyle(color: AppTheme.text),
                             decoration: InputDecoration(
                               hintText: 'Yeni şifre (tekrar)',
@@ -532,6 +553,10 @@ class _AuthScreenState extends State<AuthScreen> {
                               filled: true,
                               fillColor: AppTheme.surface3,
                               prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.muted, size: 20),
+                              suffixIcon: IconButton(
+                                icon: Icon(obscureConfirmPass ? Icons.visibility_off : Icons.visibility, color: AppTheme.muted, size: 20),
+                                onPressed: () => setSheetState(() => obscureConfirmPass = !obscureConfirmPass),
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
                                 borderSide: const BorderSide(color: AppTheme.border),
@@ -906,6 +931,7 @@ class _AuthScreenState extends State<AuthScreen> {
     TextInputType keyboardType = TextInputType.text,
     bool obscureText = false,
     IconData? icon,
+    Widget? suffixIcon,
     int? maxLength,
     TextAlign textAlign = TextAlign.start,
     double? letterSpacing,
@@ -931,6 +957,7 @@ class _AuthScreenState extends State<AuthScreen> {
         filled: true,
         fillColor: AppTheme.surface3.withOpacity(0.4),
         prefixIcon: icon != null ? Icon(icon, color: AppTheme.muted, size: 20) : null,
+        suffixIcon: suffixIcon,
         counterText: '',
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         enabledBorder: OutlineInputBorder(
@@ -957,7 +984,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
         child: Text(
           label.toUpperCase(),
-          style: const TextStyle(fontFamily: 'Space Mono', fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 14),
+          style: GoogleFonts.dmSans(fontWeight: FontWeight.bold, letterSpacing: 1.5, fontSize: 15),
         ),
       ),
     );

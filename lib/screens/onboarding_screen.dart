@@ -107,10 +107,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-                        style: const TextStyle(fontFamily: 'Space Mono', fontSize: 12, color: AppTheme.text, fontWeight: FontWeight.bold),
-                      ),
+                      const SizedBox(width: 40), // Placeholder to keep layout balanced after removing clock
                       _buildLangToggle(provider),
                       TextButton(
                         onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AuthScreen())),
@@ -201,11 +198,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 20),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
-                          child: Text(
-                            (_currentIndex == onboardingData.length - 1
-                                ? provider.t('onboarding_start')
-                                : provider.t('onboarding_next')),
-                            style: const TextStyle(fontFamily: 'Space Mono', fontWeight: FontWeight.bold, letterSpacing: 2),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                (_currentIndex == onboardingData.length - 1
+                                    ? provider.t('onboarding_start').toUpperCase()
+                                    : provider.t('onboarding_next').toUpperCase()),
+                                style: const TextStyle(
+                                  fontFamily: 'Space Mono',
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 2,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.arrow_forward_rounded, size: 16),
+                            ],
                           ),
                         ),
                       ),
