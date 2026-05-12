@@ -351,7 +351,26 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     final venue = sorted[index];
                     final isLoading = _loadingId == venue.id;
                     final isActive = provider.currentUser?.campusZone == venue.name;
-                    return Container(
+                    final hasActiveVenue = provider.currentUser?.campusZone != null &&
+                        provider.venues.any((v) => v.name == provider.currentUser?.campusZone);
+                    final showDivider = hasActiveVenue && index == 1;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (showDivider)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
+                            child: Text(
+                              'Mekan Değiştir',
+                              style: TextStyle(
+                                fontFamily: 'Cormorant Garamond',
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ),
+                    Container(
                       margin: const EdgeInsets.only(bottom: 2),
                       decoration: const BoxDecoration(
                         border: Border(bottom: BorderSide(color: Colors.white10, width: 0.5)),
@@ -484,33 +503,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                       ),
                                     )
                                   : isActive
-                                      ? const Column(
+                                      ? const Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(Icons.location_on_rounded, size: 11, color: Colors.black),
-                                                SizedBox(width: 3),
-                                                Text(
-                                                  'BURADASIN',
-                                                  style: TextStyle(
-                                                    fontFamily: 'Space Mono',
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.black,
-                                                    letterSpacing: 0.5,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            SizedBox(height: 3),
+                                            Icon(Icons.location_on_rounded, size: 11, color: Colors.black),
+                                            SizedBox(width: 3),
                                             Text(
-                                              'mekan değiş',
+                                              'BURADASIN',
                                               style: TextStyle(
-                                                fontSize: 8,
-                                                color: Colors.black54,
-                                                letterSpacing: 0.2,
+                                                fontFamily: 'Space Mono',
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black,
+                                                letterSpacing: 0.5,
                                               ),
                                             ),
                                           ],
@@ -529,7 +534,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         ),
                       ],
                     ),
-                  );
+                    ),
+                      ],
+                    );
                 },
               ),
             ),
