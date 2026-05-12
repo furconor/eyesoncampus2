@@ -58,10 +58,10 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: accent,
           foregroundColor: const Color(0xFF0A0800),
-          textStyle: GoogleFonts.spaceMono(
+          textStyle: GoogleFonts.dmSans(
             fontWeight: FontWeight.w700,
-            letterSpacing: 3,
-            fontSize: 14,
+            letterSpacing: 1.5,
+            fontSize: 15,
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -73,9 +73,9 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: muted2,
           side: const BorderSide(color: border),
-          textStyle: GoogleFonts.spaceMono(
-            fontWeight: FontWeight.w400,
-            letterSpacing: 2,
+          textStyle: GoogleFonts.dmSans(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.0,
             fontSize: 14,
           ),
           shape: RoundedRectangleBorder(

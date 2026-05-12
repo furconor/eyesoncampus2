@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -6,7 +7,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'theme/app_theme.dart';
 import 'providers/app_data_provider.dart';
 import 'screens/splash_screen.dart';
-
 import 'services/notification_service.dart';
 
 void main() async {
@@ -41,6 +41,9 @@ class EyesOnCampusApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        dragDevices: {PointerDeviceKind.mouse, PointerDeviceKind.touch, PointerDeviceKind.trackpad},
+      ),
       title: 'EyesOnCampus',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,

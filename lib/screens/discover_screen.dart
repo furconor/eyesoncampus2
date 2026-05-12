@@ -127,9 +127,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final isCheckedIn = provider.currentUser?.campusZone == venue.name;
     final peopleCount = provider.getVenuePeopleCount(venue.name);
     
-    final bool isPiyasalik = peopleCount > 10;
-    final Color heatColor = isPiyasalik ? Colors.orange : AppTheme.accent;
-    final String heatLabel = isPiyasalik ? 'Piyasalık' : 'Sakin';
+    // Determine heat color based on people count relative to capacity (mocked logic)
+    Color heatColor;
+    String heatLabel;
+    if (peopleCount > 15 || venue.heatLevel > 80) {
+      heatColor = AppTheme.red; // Very Hot
+      heatLabel = 'Çok Kalabalık';
+    } else if (peopleCount > 5 || venue.heatLevel > 40) {
+      heatColor = Colors.orange; // Medium
+      heatLabel = 'Hareketli';
+    } else {
+      heatColor = AppTheme.accent; // Low/Chill
+      heatLabel = 'Sakin';
+    }
 
     return GestureDetector(
       onTap: () {
@@ -205,11 +215,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       ).animate(onPlay: (c) => c.repeat()).fade(duration: 800.ms, begin: 0.4, end: 1.0).then().fade(duration: 800.ms, begin: 1.0, end: 0.4),
                       const SizedBox(width: 6),
                       Text(
-                        heatLabel,
+                        heatLabel.toUpperCase(),
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Space Mono',
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
                           color: heatColor,
+                          letterSpacing: 1,
                         ),
                       ),
                     ],
@@ -284,7 +296,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                     ],
                                   ),
                                   content: const Text(
-                                    'Mekan değiştirmek için yeterli enerjin kalmadı. Enerjinin dolmasını bekleyebilirsin.',
+                                    'Mekan değiştirmek için yeterli enerjin (PWR) kalmadı. Enerjinin dolmasını bekleyebilir veya kampüs etkinliklerine katılarak enerji kazanabilirsin.',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
                                   ),
