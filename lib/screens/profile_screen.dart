@@ -256,10 +256,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'PWR SEVİYESİ',
-                      style: TextStyle(fontFamily: 'Space Mono', fontSize: 10, letterSpacing: 2, color: Colors.white54, fontWeight: FontWeight.bold),
-                    ),
+                    Icon(Icons.bolt, color: energyColor, size: 18),
                     const SizedBox(height: 4),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -340,10 +337,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _buildStatBox('GÖZ ATAN', '${provider.lookCount}', Icons.remove_red_eye_rounded, count: 4),
-        _buildStatBox('EŞLEŞME', '${provider.matchCount}', Icons.auto_awesome_rounded, count: 4),
-        _buildStatBox('SOHBET', '${provider.chatCount}', Icons.chat_bubble_rounded, count: 4),
-        _buildStatBox('AYLIK GÖZ', '${provider.monthlyViews}', Icons.insights_rounded, count: 4),
+        _buildStatBox('GÖZ KIRPMA', '${provider.lookCount}', Icons.remove_red_eye_rounded, count: 3),
+        _buildStatBox('EŞLEŞME', '${provider.matchCount}', Icons.auto_awesome_rounded, count: 3),
+        _buildStatBox('PROFİL ZİYARETİ', '${provider.monthlyViews}', Icons.insights_rounded, count: 3),
       ],
     ).animate().fadeIn(delay: 500.ms, duration: 600.ms);
   }

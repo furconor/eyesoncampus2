@@ -67,13 +67,7 @@ class _VenueDetailScreenState extends State<VenueDetailScreen> {
   }
 
   Widget _buildSliverAppBar(BuildContext context, bool isCheckedIn, int userCount) {
-    // Heat level colors
-    Color heatColor = AppTheme.accent;
-    if (userCount > 15 || widget.venue.heatLevel > 80) {
-      heatColor = AppTheme.red;
-    } else if (userCount > 5 || widget.venue.heatLevel > 40) {
-      heatColor = Colors.orange;
-    }
+    final Color heatColor = userCount > 10 ? Colors.orange : AppTheme.accent;
 
     return SliverAppBar(
       expandedHeight: MediaQuery.of(context).size.height * 0.45,
@@ -319,19 +313,6 @@ class _VenueDetailScreenState extends State<VenueDetailScreen> {
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppTheme.accent.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          Text('${user.points}', style: const TextStyle(fontFamily: 'Space Mono', color: AppTheme.accent, fontWeight: FontWeight.bold, fontSize: 12)),
-                          const Icon(Icons.bolt, color: AppTheme.accent, size: 14),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -422,15 +403,25 @@ class _VenueDetailScreenState extends State<VenueDetailScreen> {
                     width: 24, height: 24,
                     child: CircularProgressIndicator(color: isCheckedIn ? AppTheme.red : Colors.black, strokeWidth: 3),
                   )
-                : Text(
-                    isCheckedIn ? 'MEKANDAN AYRIL' : 'BURADAYIM (-1 PWR)',
-                    style: TextStyle(
-                      fontFamily: 'Space Mono',
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: isCheckedIn ? AppTheme.red : Colors.black,
-                      letterSpacing: 2,
-                    ),
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isCheckedIn ? 'MEKANDAN AYRIL' : 'BURADAYIM',
+                        style: TextStyle(
+                          fontFamily: 'Space Mono',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isCheckedIn ? AppTheme.red : Colors.black,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      if (!isCheckedIn) ...[
+                        const SizedBox(width: 6),
+                        const Text('−1', style: TextStyle(fontFamily: 'Space Mono', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54)),
+                        const Icon(Icons.bolt, color: Colors.black54, size: 16),
+                      ],
+                    ],
                   ),
           ),
         ),

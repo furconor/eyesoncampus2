@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -321,106 +320,168 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(2))),
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Text('Şu an Neredesin?', style: TextStyle(fontFamily: 'Cormorant Garamond', fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-            ),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: provider.venues.length,
-                itemBuilder: (context, index) {
-                  final venue = provider.venues[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: GestureDetector(
-                      onTap: () async {
-                        HapticFeedback.mediumImpact();
-                        Navigator.pop(context);
-                        final errorMsg = await provider.checkIn(venue);
-                        if (errorMsg != null && context.mounted) {
-                          if (errorMsg.contains('enerjin')) {
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                backgroundColor: AppTheme.surface,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                                title: const Column(
+      builder: (context) {
+        String? _loadingId;
+        final sheetCtx = context;
+        return StatefulBuilder(
+          builder: (context, setSheetState) => Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: const BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(2))),
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Şu an Neredesin?', style: TextStyle(fontFamily: 'Cormorant Garamond', fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: provider.venues.length,
+                  itemBuilder: (context, index) {
+                    final venue = provider.venues[index];
+                    final isLoading = _loadingId == venue.id;
+                    final isActive = provider.currentUser?.campusZone == venue.id;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 2),
+                      decoration: const BoxDecoration(
+                        border: Border(bottom: BorderSide(color: Colors.white10, width: 0.5)),
+                      ),
+                      child: Row(
+                        children: [
+                          // Left: navigate to venue detail
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                Navigator.pop(context);
+                                Navigator.push(context, MaterialPageRoute(builder: (_) => VenueDetailScreen(venue: venue)));
+                              },
+                              child: Container(
+                                color: Colors.transparent,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                child: Row(
                                   children: [
-                                    Icon(Icons.bolt_rounded, color: AppTheme.accent, size: 48),
-                                    SizedBox(height: 16),
-                                    Text('Enerjin Bitti!', style: TextStyle(color: Colors.white, fontFamily: 'Cormorant Garamond', fontSize: 28, fontWeight: FontWeight.bold)),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: venue.imageUrl != null && venue.imageUrl!.isNotEmpty
+                                          ? Image.network(
+                                              venue.imageUrl!,
+                                              width: 52,
+                                              height: 52,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => _venueFallback(52),
+                                            )
+                                          : _venueFallback(52),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(venue.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
+                                        const SizedBox(height: 3),
+                                        Text('${venue.peopleCount} Kişi', style: const TextStyle(fontFamily: 'Space Mono', fontSize: 10, color: Colors.white54)),
+                                      ],
+                                    ),
                                   ],
                                 ),
-                                content: const Text(
-                                  'Mekan değiştirmek için yeterli enerjin (PWR) kalmadı. Enerjinin dolmasını bekleyebilir veya kampüs etkinliklerine katılarak enerji kazanabilirsin.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
-                                ),
-                                actions: [
-                                  Center(
-                                    child: TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      style: TextButton.styleFrom(
-                                        backgroundColor: AppTheme.surface2,
-                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                          // Right: check-in button
+                          GestureDetector(
+                            onTap: isLoading ? null : () async {
+                              HapticFeedback.mediumImpact();
+                              setSheetState(() => _loadingId = venue.id);
+                              final errorMsg = await provider.checkIn(venue);
+                              if (!sheetCtx.mounted) return;
+                              if (errorMsg != null) {
+                                setSheetState(() => _loadingId = null);
+                                if (errorMsg.contains('enerjin')) {
+                                  Navigator.pop(sheetCtx);
+                                  showDialog(
+                                    context: sheetCtx,
+                                    builder: (ctx) => AlertDialog(
+                                      backgroundColor: AppTheme.surface,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                      title: const Column(
+                                        children: [
+                                          Icon(Icons.bolt_rounded, color: AppTheme.accent, size: 48),
+                                          SizedBox(height: 16),
+                                          Text('Enerjin Bitti!', style: TextStyle(color: Colors.white, fontFamily: 'Cormorant Garamond', fontSize: 28, fontWeight: FontWeight.bold)),
+                                        ],
                                       ),
-                                      child: const Text('Anladım', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold, fontFamily: 'Space Mono')),
+                                      content: const Text(
+                                        'Mekan değiştirmek için yeterli enerjin kalmadı. Enerjinin dolmasını bekleyebilir veya kampüs etkinliklerine katılarak enerji kazanabilirsin.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+                                      ),
+                                      actions: [
+                                        Center(
+                                          child: TextButton(
+                                            onPressed: () => Navigator.pop(ctx),
+                                            style: TextButton.styleFrom(
+                                              backgroundColor: AppTheme.surface2,
+                                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            ),
+                                            child: const Text('Anladım', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold, fontFamily: 'Space Mono')),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ],
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: AppTheme.red));
+                                }
+                              } else {
+                                Navigator.pop(sheetCtx);
+                                _showToast(sheetCtx, icon: '⚡', title: '${venue.name}\'e geçtin  −1 ⚡', borderColor: AppTheme.accent, dopamine: true);
+                              }
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              margin: const EdgeInsets.only(left: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isLoading || isActive
+                                    ? AppTheme.accent.withValues(alpha: 0.9)
+                                    : AppTheme.accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isLoading || isActive
+                                      ? AppTheme.accent
+                                      : AppTheme.accent.withValues(alpha: 0.35),
+                                ),
                               ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: AppTheme.red));
-                          }
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 10),
-                        decoration: const BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Colors.white10, width: 0.5)),
-                        ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: venue.imageUrl != null && venue.imageUrl!.isNotEmpty
-                                  ? Image.network(
-                                      venue.imageUrl!,
-                                      width: 52,
-                                      height: 52,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => _venueFallback(52),
+                              child: isLoading
+                                  ? const SizedBox(
+                                      width: 42,
+                                      height: 14,
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 12, height: 12,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                                        ),
+                                      ),
                                     )
-                                  : _venueFallback(52),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(venue.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
-                                  const SizedBox(height: 3),
-                                  Text('${venue.peopleCount} Kişi', style: const TextStyle(fontFamily: 'Space Mono', fontSize: 10, color: Colors.white54)),
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white38),
-                          ],
+                                  : Text(
+                                      isActive ? 'BURADA' : 'BURADAYIM',
+                                      style: TextStyle(
+                                        fontFamily: 'Space Mono',
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: isActive ? Colors.black : AppTheme.accent,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   );
                 },
@@ -429,7 +490,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             const SizedBox(height: 20),
           ],
         ),
-      ),
+        ),
+      );
+    },
     );
   }
 
@@ -650,84 +713,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildRadarUserItem(BuildContext context, User user, int index) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          Navigator.push(context, MaterialPageRoute(builder: (_) => OtherProfileScreen(user: user)));
-        },
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.surface2,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: Row(
-            children: [
-              Stack(
-                children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppTheme.surface3,
-                      border: Border.all(color: Colors.white24),
-                      image: user.profileImageUrl != null
-                          ? DecorationImage(
-                              image: user.profileImageUrl!.startsWith('http')
-                                  ? NetworkImage(user.profileImageUrl!) as ImageProvider
-                                  : FileImage(File(user.profileImageUrl!)),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                    ),
-                    alignment: Alignment.center,
-                    child: user.profileImageUrl == null ? Text(user.avatar, style: const TextStyle(fontSize: 24)) : null,
-                  ),
-                  if (user.isOnline)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(color: const Color(0xFF4CAF50), shape: BoxShape.circle, border: Border.all(color: AppTheme.surface2, width: 2)),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(user.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                    const SizedBox(height: 4),
-                    Text(user.department, style: const TextStyle(fontFamily: 'Space Mono', fontSize: 10, color: Colors.white54)),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: AppTheme.accent.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                child: Row(
-                  children: [
-                    Text('${user.points}', style: const TextStyle(fontFamily: 'Space Mono', fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.accent)),
-                    const Icon(Icons.bolt_rounded, size: 12, color: AppTheme.accent),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ).animate().fadeIn(delay: (index * 50).ms).slideX(begin: 0.1, end: 0);
-  }
-
   Widget _buildTopVenueItem(BuildContext context, Venue venue, int index) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -800,6 +785,60 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 }
 
 // ─── Radar user card with long-press dopamine interaction ──────────────────
+
+void _showToast(
+  BuildContext ctx, {
+  required String icon,
+  required String title,
+  String? subtitle,
+  required Color borderColor,
+  bool dopamine = false,
+}) {
+  ScaffoldMessenger.of(ctx)
+    ..clearSnackBars()
+    ..showSnackBar(SnackBar(
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF181818),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor.withValues(alpha: 0.55), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: dopamine ? AppTheme.accent.withValues(alpha: 0.28) : Colors.black54,
+              blurRadius: dopamine ? 22 : 14,
+              spreadRadius: dopamine ? 2 : 0,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 22)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.2)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(milliseconds: 2800),
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 80),
+      padding: EdgeInsets.zero,
+    ));
+}
 
 class _Particle {
   final int id;
@@ -970,8 +1009,7 @@ class _RadarUserCardState extends State<_RadarUserCard>
         _showToast(
           _ctx,
           icon: '😉',
-          title: 'Göz kırptın!',
-          subtitle: '${widget.user.name.split(' ').first} haberi oldu  −1 ⚡',
+          title: 'Göz kırptın!  −1 ⚡',
           borderColor: AppTheme.accent,
           dopamine: true,
         );
@@ -988,77 +1026,6 @@ class _RadarUserCardState extends State<_RadarUserCard>
       });
       _progressCtrl.reset();
     });
-  }
-
-  static void _showToast(
-    BuildContext ctx, {
-    required String icon,
-    required String title,
-    required String subtitle,
-    required Color borderColor,
-    bool dopamine = false,
-  }) {
-    ScaffoldMessenger.of(ctx)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(
-        content: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF181818),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: borderColor.withValues(alpha: 0.55),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: dopamine
-                    ? AppTheme.accent.withValues(alpha: 0.28)
-                    : Colors.black54,
-                blurRadius: dopamine ? 22 : 14,
-                spreadRadius: dopamine ? 2 : 0,
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Text(icon, style: const TextStyle(fontSize: 22)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(milliseconds: 2800),
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 80),
-        padding: EdgeInsets.zero,
-      ));
   }
 
   @override

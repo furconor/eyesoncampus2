@@ -175,11 +175,6 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Etkinlik harika bir enerji kaynağıdır! (3+ Kişi = +2 Puan)',
-                style: TextStyle(color: AppTheme.muted, fontSize: 13),
-              ),
               const SizedBox(height: 32),
               _buildTextField(
                 controller: _titleController,
