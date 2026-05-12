@@ -31,6 +31,10 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
   int get selectedTabIndex => _selectedTabIndex;
   String get energyCountdown => _energyCountdown;
 
+  Map<String, List<String>> _appImages = {};
+  List<String> get onboardingImages => _appImages['onboarding'] ?? [];
+  List<String> get authImages => _appImages['auth'] ?? [];
+
   String t(String key) => LocalizationService.translate(key, _currentLanguage);
 
   // Me (Current User)
@@ -39,6 +43,10 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
 
   int _dailyInterestsLeft = 5;
   int get dailyInterestsLeft => _dailyInterestsLeft;
+
+  int _dailyWinkCount = 0;
+  List<String> _dailyWinkTargets = [];
+  int get nextWinkCost => _dailyWinkCount + 1;
 
   // Data Lists
   List<User> _allUsers = [];
@@ -168,37 +176,35 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _recalculateEnergy() async {
-    if (_currentUser == null) return;
-    
-    final now = DateTime.now();
-    final lastSync = _currentUser!.lastEnergySyncAt ?? now;
-    final diff = now.difference(lastSync);
-    
-    if (_currentUser!.points >= 10) {
-      // Already at or above max, just update sync time to now so regeneration 
-      // starts exactly 30 mins after dropping below 10.
-      if (diff.inMinutes >= 1) {
-        _currentUser = _currentUser!.copyWith(lastEnergySyncAt: now);
-        await SupabaseService().updateProfile({'last_energy_sync_at': now.toIso8601String()});
-      }
-      return;
-    }
+    await _checkDailyReset();
+  }
 
-    final intervals = diff.inMinutes ~/ 30;
-    if (intervals > 0) {
-      final newPoints = (_currentUser!.points + intervals).clamp(0, 10);
-      final newSyncTime = lastSync.add(Duration(minutes: intervals * 30));
-      
-      _currentUser = _currentUser!.copyWith(
-        points: newPoints,
-        lastEnergySyncAt: newSyncTime,
-      );
-      
-      await SupabaseService().updateProfile({
-        'points': newPoints,
-        'last_energy_sync_at': newSyncTime.toIso8601String(),
-      });
+  Future<void> _checkDailyReset() async {
+    if (_currentUser == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final savedDate = prefs.getString('daily_wink_date') ?? '';
+
+    if (savedDate != todayStr) {
+      // Yeni gün: eşleşmeyenleri sentInterests'ten çıkar
+      final yesterdayTargets = prefs.getStringList('daily_wink_targets') ?? [];
+      for (final id in yesterdayTargets) {
+        if (!_matches.contains(id)) _sentInterests.remove(id);
+      }
+      // Enerjiyi 10'a sıfırla
+      _currentUser = _currentUser!.copyWith(points: 10);
+      await SupabaseService().updateProfile({'points': 10});
+      // Günlük sayaçları sıfırla
+      _dailyWinkCount = 0;
+      _dailyWinkTargets = [];
+      await prefs.setString('daily_wink_date', todayStr);
+      await prefs.setInt('daily_wink_count', 0);
+      await prefs.setStringList('daily_wink_targets', []);
       notifyListeners();
+    } else {
+      _dailyWinkCount = prefs.getInt('daily_wink_count') ?? 0;
+      _dailyWinkTargets = List<String>.from(prefs.getStringList('daily_wink_targets') ?? []);
     }
   }
 
@@ -280,29 +286,23 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
 
   void _updateEnergyCountdown() {
     if (_currentUser == null) return;
-    
-    // Auto refill if timer passed 30m while app was active
     final now = DateTime.now();
-    final lastSync = _currentUser!.lastEnergySyncAt ?? now;
-    final diff = now.difference(lastSync);
-    
-    if (diff.inMinutes >= 30 && _currentUser!.points < 10) {
-      _recalculateEnergy();
-      return;
-    }
+
+    // Gece yarısı geçtiyse reset tetikle
+    final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    SharedPreferences.getInstance().then((prefs) {
+      if ((prefs.getString('daily_wink_date') ?? '') != todayStr) _checkDailyReset();
+    });
 
     if (_currentUser!.points >= 10) {
       _energyCountdown = "TAM DOLU";
     } else {
-      final nextRefill = lastSync.add(const Duration(minutes: 30));
-      final remaining = nextRefill.difference(now);
-      if (remaining.isNegative) {
-        _energyCountdown = "00:00";
-      } else {
-        final m = remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
-        final s = remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
-        _energyCountdown = "$m:$s";
-      }
+      final midnight = DateTime(now.year, now.month, now.day + 1);
+      final remaining = midnight.difference(now);
+      final h = remaining.inHours.toString().padLeft(2, '0');
+      final m = remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
+      final s = remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
+      _energyCountdown = "$h:$m:$s";
     }
     notifyListeners();
   }
@@ -377,8 +377,15 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
 
     await loadUniversities();
     await _loadVenues();
-    _selectedTabIndex = 0; // Default to Radar screen
+    unawaited(_loadAppImages());
+    _selectedTabIndex = 0;
     _isInitialized = true;
+    notifyListeners();
+  }
+
+  Future<void> _loadAppImages() async {
+    final svc = SupabaseService();
+    _appImages = await svc.getAppImages();
     notifyListeners();
   }
 
@@ -643,13 +650,14 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<String?> sendInterest(String targetUserId, {bool forceMatch = false}) async {
-    await _recalculateEnergy();
+    await _checkDailyReset();
     if (_sentInterests.contains(targetUserId)) return 'Zaten göz kırptın!';
     if (_currentUser == null) return 'Kullanıcı bulunamadı.';
 
-    // Check if user has enough points
-    if (_currentUser!.points < 1) {
-      return 'Yeterli enerjin yok! Enerjinin dolmasını bekle.';
+    // Artan maliyet: 1. wink=1, 2. wink=2, 3. wink=3 ...
+    final int cost = _dailyWinkCount + 1;
+    if (_currentUser!.points < cost) {
+      return 'Yeterli enerjin yok! Bu göz kırpma $cost enerji gerektiriyor.';
     }
 
     final supabase = SupabaseService();
@@ -663,10 +671,17 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     _sentInterests.add(targetUserId);
-    
-    // Deduct point for winking
-    await addPoints(-1, 'Göz kırpma');
-    
+    _dailyWinkTargets.add(targetUserId);
+    _dailyWinkCount++;
+
+    // Artan maliyeti düş
+    await addPoints(-cost, 'Göz kırpma');
+
+    // Günlük sayaçları kaydet
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('daily_wink_count', _dailyWinkCount);
+    await prefs.setStringList('daily_wink_targets', _dailyWinkTargets);
+
     final isMatch = await supabase.sendInterest(targetUserId);
     
     if (isMatch) {

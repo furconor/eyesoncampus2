@@ -21,6 +21,7 @@ class _AuthScreenState extends State<AuthScreen> {
   
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool _obscurePassword = true;
   
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _deptController = TextEditingController();
@@ -660,22 +661,59 @@ class _AuthScreenState extends State<AuthScreen> {
           style: const TextStyle(color: AppTheme.text, fontSize: 16),
         ),
       ) : null,
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppTheme.accent))
-            : Column(
-                children: [
-                  if (_step >= 1 && _step <= 3)
-                    LinearProgressIndicator(
-                      value: _step / 3,
-                      minHeight: 2,
-                      backgroundColor: Colors.white10,
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accent),
-                    ),
-                  Expanded(child: _buildBody()),
-                ],
+      body: _buildAuthBody(),
+    );
+  }
+
+  Widget _buildAuthBody() {
+    final provider = Provider.of<AppData>(context, listen: false);
+    final imgs = provider.authImages;
+    final bgUrl = (_step > 0 && imgs.length > _step) ? imgs[_step] : null;
+    return Stack(
+      children: [
+        if (bgUrl != null)
+          Positioned.fill(
+            child: Image.network(
+              bgUrl,
+              fit: BoxFit.cover,
+              opacity: const AlwaysStoppedAnimation(0.28),
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ),
+        if (bgUrl != null)
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.05),
+                    AppTheme.bg.withValues(alpha: 0.70),
+                    AppTheme.bg,
+                  ],
+                  stops: const [0, 0.60, 1],
+                ),
               ),
-      ),
+            ),
+          ),
+        SafeArea(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator(color: AppTheme.accent))
+              : Column(
+                  children: [
+                    if (_step >= 1 && _step <= 3)
+                      LinearProgressIndicator(
+                        value: _step / 3,
+                        minHeight: 2,
+                        backgroundColor: Colors.white10,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accent),
+                      ),
+                    Expanded(child: _buildBody()),
+                  ],
+                ),
+        ),
+      ],
     );
   }
 
@@ -692,15 +730,16 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _buildSplashOption() {
     final provider = Provider.of<AppData>(context);
+    final bgUrl = provider.authImages.isNotEmpty ? provider.authImages[0] : null;
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppTheme.bg,
-        image: DecorationImage(
-          image: AssetImage('assets/images/onboarding_3.png'),
+        image: bgUrl != null ? DecorationImage(
+          image: NetworkImage(bgUrl),
           fit: BoxFit.cover,
-          opacity: 0.15,
-        ),
+          opacity: 0.30,
+        ) : null,
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -876,6 +915,7 @@ class _AuthScreenState extends State<AuthScreen> {
     TextInputType keyboardType = TextInputType.text,
     bool obscureText = false,
     IconData? icon,
+    Widget? suffixIcon,
     int? maxLength,
     TextAlign textAlign = TextAlign.start,
     double? letterSpacing,
@@ -901,6 +941,7 @@ class _AuthScreenState extends State<AuthScreen> {
         filled: true,
         fillColor: AppTheme.surface3.withOpacity(0.4),
         prefixIcon: icon != null ? Icon(icon, color: AppTheme.muted, size: 20) : null,
+        suffixIcon: suffixIcon,
         counterText: '',
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         enabledBorder: OutlineInputBorder(
@@ -1030,10 +1071,18 @@ class _AuthScreenState extends State<AuthScreen> {
           _buildPremiumTextField(
             controller: _passwordController,
             hint: 'En az 6 karakter',
-            obscureText: true,
+            obscureText: _obscurePassword,
             icon: Icons.lock_outline,
             fontSize: 24,
             letterSpacing: 4,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                color: AppTheme.muted,
+                size: 20,
+              ),
+              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            ),
           ),
           const SizedBox(height: 40),
           _buildAgreementItem(

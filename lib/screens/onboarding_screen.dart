@@ -34,30 +34,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<AppData>(context);
     
+    const _fallbackImages = [
+      'https://upload.wikimedia.org/wikipedia/commons/b/bf/Anderson_Hall%2C_Bogazici_University.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/ITU_Ta%C5%9Fk%C4%B1%C5%9Fla_Campus.JPG/1280px-ITU_Ta%C5%9Fk%C4%B1%C5%9Fla_Campus.JPG',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/METU_Library.jpg/1280px-METU_Library.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/d/da/Wisteria_south_campus_Bogazici_University_2022.jpg',
+    ];
+    final dbImages = provider.onboardingImages;
+    String _img(int i) => (dbImages.length > i && dbImages[i].isNotEmpty) ? dbImages[i] : _fallbackImages[i];
+
     final List<Map<String, dynamic>> onboardingData = [
       {
         'icon': Icons.location_on_outlined,
         'title': provider.t('onboarding_title_1'),
         'desc': provider.t('onboarding_desc_1'),
-        'image': 'assets/images/onboarding_1.png',
+        'image': _img(0),
       },
       {
         'icon': Icons.chat_bubble_outline,
         'title': provider.t('onboarding_title_2'),
         'desc': provider.t('onboarding_desc_2'),
-        'image': 'assets/images/onboarding_2.png',
+        'image': _img(1),
       },
       {
         'icon': Icons.school_outlined,
         'title': provider.t('onboarding_title_3'),
         'desc': provider.t('onboarding_desc_3'),
-        'image': 'assets/images/onboarding_3.png',
+        'image': _img(2),
       },
       {
         'icon': Icons.security_outlined,
         'title': provider.t('onboarding_title_4'),
         'desc': provider.t('onboarding_desc_4'),
-        'image': 'assets/images/onboarding_1.png', // Reuse first for now
+        'image': _img(3),
       },
     ];
 
@@ -74,7 +83,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               height: double.infinity,
               decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage(onboardingData[_currentIndex]['image'] as String),
+                  image: NetworkImage(onboardingData[_currentIndex]['image'] as String),
                   fit: BoxFit.cover,
                   opacity: 0.35,
                 ),

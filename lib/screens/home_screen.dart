@@ -343,9 +343,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   itemCount: provider.venues.length,
                   itemBuilder: (context, index) {
-                    final venue = provider.venues[index];
+                    // Active venue always first
+                    final sorted = [
+                      ...provider.venues.where((v) => v.name == provider.currentUser?.campusZone),
+                      ...provider.venues.where((v) => v.name != provider.currentUser?.campusZone),
+                    ];
+                    final venue = sorted[index];
                     final isLoading = _loadingId == venue.id;
-                    final isActive = provider.currentUser?.campusZone == venue.id;
+                    final isActive = provider.currentUser?.campusZone == venue.name;
                     return Container(
                       margin: const EdgeInsets.only(bottom: 2),
                       decoration: const BoxDecoration(
@@ -392,9 +397,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                               ),
                             ),
                           ),
-                          // Right: check-in button
+                          // Right: check-in button (inactive if already here)
                           GestureDetector(
-                            onTap: isLoading ? null : () async {
+                            onTap: isActive || isLoading ? null : () async {
                               HapticFeedback.mediumImpact();
                               setSheetState(() => _loadingId = venue.id);
                               final errorMsg = await provider.checkIn(venue);
@@ -446,17 +451,26 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               margin: const EdgeInsets.only(left: 10),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isActive ? 14 : 12,
+                                vertical: isActive ? 10 : 8,
+                              ),
                               decoration: BoxDecoration(
-                                color: isLoading || isActive
+                                color: isLoading
                                     ? AppTheme.accent.withValues(alpha: 0.9)
-                                    : AppTheme.accent.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
+                                    : isActive
+                                        ? AppTheme.accent
+                                        : AppTheme.accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(isActive ? 14 : 12),
                                 border: Border.all(
-                                  color: isLoading || isActive
+                                  color: isActive || isLoading
                                       ? AppTheme.accent
                                       : AppTheme.accent.withValues(alpha: 0.35),
+                                  width: isActive ? 0 : 1,
                                 ),
+                                boxShadow: isActive
+                                    ? [BoxShadow(color: AppTheme.accent.withValues(alpha: 0.35), blurRadius: 10, spreadRadius: 1)]
+                                    : null,
                               ),
                               child: isLoading
                                   ? const SizedBox(
@@ -469,16 +483,48 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                         ),
                                       ),
                                     )
-                                  : Text(
-                                      isActive ? 'BURADA' : 'BURADAYIM',
-                                      style: TextStyle(
-                                        fontFamily: 'Space Mono',
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        color: isActive ? Colors.black : AppTheme.accent,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
+                                  : isActive
+                                      ? const Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.location_on_rounded, size: 11, color: Colors.black),
+                                                SizedBox(width: 3),
+                                                Text(
+                                                  'BURADASIN',
+                                                  style: TextStyle(
+                                                    fontFamily: 'Space Mono',
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.black,
+                                                    letterSpacing: 0.5,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            SizedBox(height: 3),
+                                            Text(
+                                              'mekan değiş',
+                                              style: TextStyle(
+                                                fontSize: 8,
+                                                color: Colors.black54,
+                                                letterSpacing: 0.2,
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : const Text(
+                                          'GİT',
+                                          style: TextStyle(
+                                            fontFamily: 'Space Mono',
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppTheme.accent,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
                           ),
                         ),
                       ],
@@ -917,13 +963,14 @@ class _RadarUserCardState extends State<_RadarUserCard>
       return;
     }
 
-    if ((provider.currentUser?.points ?? 0) < 1) {
+    final cost = provider.nextWinkCost;
+    if ((provider.currentUser?.points ?? 0) < cost) {
       HapticFeedback.lightImpact();
       _showToast(
         _ctx,
         icon: '⚡',
-        title: 'Enerji yok!',
-        subtitle: 'Göz kırpmak 1 enerji götürür. Bekle dolsun.',
+        title: 'Enerji yetmez!',
+        subtitle: 'Bu göz kırpma $cost enerji götürür.',
         borderColor: const Color(0xFFFF6B6B),
       );
       return;
@@ -1033,6 +1080,7 @@ class _RadarUserCardState extends State<_RadarUserCard>
     _ctx = context;
     final provider = Provider.of<AppData>(context);
     final alreadyWinked = provider.hasSentInterest(widget.user.id);
+    final winkCost = provider.nextWinkCost;
     return GestureDetector(
       onTap: () {
         HapticFeedback.mediumImpact();
@@ -1043,7 +1091,7 @@ class _RadarUserCardState extends State<_RadarUserCard>
       onLongPressCancel: _cancel,
       child: AnimatedBuilder(
         animation: Listenable.merge([_progressCtrl, _pulseCtrl]),
-        builder: (context, _) => _buildCard(alreadyWinked),
+        builder: (context, _) => _buildCard(alreadyWinked, winkCost),
       ),
     )
         .animate()
@@ -1056,7 +1104,7 @@ class _RadarUserCardState extends State<_RadarUserCard>
         );
   }
 
-  Widget _buildCard(bool alreadyWinked) {
+  Widget _buildCard(bool alreadyWinked, int winkCost) {
     final p = _progressCtrl.value;
     final glow = _isPressed ? (0.3 + 0.12 * _pulseCtrl.value) * p : 0.0;
     return Stack(
@@ -1106,6 +1154,19 @@ class _RadarUserCardState extends State<_RadarUserCard>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+              if (!alreadyWinked) ...[
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '−$winkCost',
+                      style: const TextStyle(fontSize: 9, color: AppTheme.accent, fontFamily: 'Space Mono'),
+                    ),
+                    const Icon(Icons.bolt, size: 10, color: AppTheme.accent),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

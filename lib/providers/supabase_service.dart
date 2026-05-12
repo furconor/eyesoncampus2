@@ -964,6 +964,27 @@ class SupabaseService extends ChangeNotifier {
       return false;
     }
   }
+  // APP IMAGES (onboarding / auth backgrounds)
+  Future<Map<String, List<String>>> getAppImages() async {
+    try {
+      final response = await _client
+          .from('app_images')
+          .select()
+          .order('slide_index', ascending: true);
+      final list = response as List;
+      final Map<String, List<String>> result = {};
+      for (final row in list) {
+        final screen = row['screen'] as String;
+        final url = row['image_url'] as String;
+        result.putIfAbsent(screen, () => []).add(url);
+      }
+      return result;
+    } catch (e) {
+      debugPrint('❌ getAppImages error: $e');
+      return {};
+    }
+  }
+
   // MEKANLARI (VENUES) GETİR
   Future<List<app_models.Venue>> getVenues({String? universityName}) async {
     try {
