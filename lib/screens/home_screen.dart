@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'dart:math' as math;
@@ -103,14 +104,26 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   child: _buildEmptyState(),
                 )
               else if (isCheckedIn)
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        return _buildRadarUserItem(context, users[index], index);
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 145,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: users.length,
+                      itemBuilder: (context, index) {
+                        return _RadarUserCard(
+                          user: users[index],
+                          index: index,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => OtherProfileScreen(user: users[index]),
+                            ),
+                          ),
+                        );
                       },
-                      childCount: users.length,
                     ),
                   ),
                 )
@@ -782,6 +795,475 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       height: size,
       color: AppTheme.surface3,
       child: const Icon(Icons.location_city_rounded, color: Colors.white10, size: 28),
+    );
+  }
+}
+
+// ─── Radar user card with long-press dopamine interaction ──────────────────
+
+class _Particle {
+  final int id;
+  final String emoji;
+  final double dx;
+  _Particle({required this.id, required this.emoji, required this.dx});
+}
+
+class _RadarUserCard extends StatefulWidget {
+  final User user;
+  final int index;
+  final VoidCallback onTap;
+
+  const _RadarUserCard({
+    required this.user,
+    required this.index,
+    required this.onTap,
+  });
+
+  @override
+  State<_RadarUserCard> createState() => _RadarUserCardState();
+}
+
+class _RadarUserCardState extends State<_RadarUserCard>
+    with TickerProviderStateMixin {
+  late AnimationController _progressCtrl;
+  late AnimationController _pulseCtrl;
+  bool _isPressed = false;
+  bool _isCompleted = false;
+  bool _showWink = false;
+  final List<_Particle> _particles = [];
+  int _particleId = 0;
+  Timer? _hapticTimer;
+  Timer? _particleTimer;
+  late BuildContext _ctx;
+
+  static const _emojis = ['⚡', '🔥', '✨', '💫', '⭐', '🌟'];
+  static const _burst = ['🎉', '💥', '⚡', '🔥', '✨', '💫', '🌟', '❤️‍🔥', '👀', '😍'];
+
+  @override
+  void initState() {
+    super.initState();
+    _progressCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1300),
+    )..addStatusListener((s) {
+        if (s == AnimationStatus.completed) _onCompleted();
+      });
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _progressCtrl.dispose();
+    _pulseCtrl.dispose();
+    _hapticTimer?.cancel();
+    _particleTimer?.cancel();
+    super.dispose();
+  }
+
+  void _start(LongPressStartDetails _) {
+    final provider = Provider.of<AppData>(_ctx, listen: false);
+
+    if (provider.hasSentInterest(widget.user.id)) {
+      HapticFeedback.lightImpact();
+      _showToast(
+        _ctx,
+        icon: '😏',
+        title: 'Zaten göz kırptın!',
+        subtitle: 'Bu kişiye bir kez gönderebilirsin.',
+        borderColor: Colors.white24,
+      );
+      return;
+    }
+
+    if ((provider.currentUser?.points ?? 0) < 1) {
+      HapticFeedback.lightImpact();
+      _showToast(
+        _ctx,
+        icon: '⚡',
+        title: 'Enerji yok!',
+        subtitle: 'Göz kırpmak 1 enerji götürür. Bekle dolsun.',
+        borderColor: const Color(0xFFFF6B6B),
+      );
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isPressed = true;
+      _isCompleted = false;
+      _showWink = false;
+      _particles.clear();
+    });
+    _progressCtrl.forward(from: 0);
+
+    _hapticTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (mounted) HapticFeedback.selectionClick();
+    });
+    _particleTimer = Timer.periodic(const Duration(milliseconds: 160), (_) {
+      if (!mounted) return;
+      final rand = math.Random();
+      setState(() {
+        _particles.add(_Particle(
+          id: _particleId++,
+          emoji: _emojis[rand.nextInt(_emojis.length)],
+          dx: (rand.nextDouble() - 0.5) * 60,
+        ));
+        if (_particles.length > 7) _particles.removeAt(0);
+      });
+    });
+  }
+
+  void _end(LongPressEndDetails _) {
+    if (!_isCompleted) _cancel();
+  }
+
+  void _cancel() {
+    _hapticTimer?.cancel();
+    _particleTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _isPressed = false;
+      _particles.clear();
+    });
+    _progressCtrl.reverse();
+  }
+
+  void _onCompleted() {
+    _hapticTimer?.cancel();
+    _particleTimer?.cancel();
+
+    HapticFeedback.heavyImpact();
+    Future.delayed(120.ms, () { if (mounted) HapticFeedback.heavyImpact(); });
+    Future.delayed(250.ms, () { if (mounted) HapticFeedback.heavyImpact(); });
+    Future.delayed(400.ms, () { if (mounted) HapticFeedback.vibrate(); });
+
+    final rand = math.Random();
+    setState(() {
+      _isCompleted = true;
+      _showWink = true;
+      _particles.clear();
+      for (int i = 0; i < 10; i++) {
+        _particles.add(_Particle(
+          id: _particleId++,
+          emoji: _burst[i % _burst.length],
+          dx: (rand.nextDouble() - 0.5) * 90,
+        ));
+      }
+    });
+
+    Provider.of<AppData>(_ctx, listen: false)
+        .sendInterest(widget.user.id)
+        .then((error) {
+      if (!mounted) return;
+      if (error != null) {
+        _showToast(
+          _ctx,
+          icon: '😅',
+          title: 'Bir sorun çıktı',
+          subtitle: error,
+          borderColor: Colors.white24,
+        );
+      } else {
+        _showToast(
+          _ctx,
+          icon: '😉',
+          title: 'Göz kırptın!',
+          subtitle: '${widget.user.name.split(' ').first} haberi oldu  −1 ⚡',
+          borderColor: AppTheme.accent,
+          dopamine: true,
+        );
+      }
+    });
+
+    Future.delayed(const Duration(milliseconds: 1800), () {
+      if (!mounted) return;
+      setState(() {
+        _isPressed = false;
+        _isCompleted = false;
+        _showWink = false;
+        _particles.clear();
+      });
+      _progressCtrl.reset();
+    });
+  }
+
+  static void _showToast(
+    BuildContext ctx, {
+    required String icon,
+    required String title,
+    required String subtitle,
+    required Color borderColor,
+    bool dopamine = false,
+  }) {
+    ScaffoldMessenger.of(ctx)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF181818),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: borderColor.withValues(alpha: 0.55),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: dopamine
+                    ? AppTheme.accent.withValues(alpha: 0.28)
+                    : Colors.black54,
+                blurRadius: dopamine ? 22 : 14,
+                spreadRadius: dopamine ? 2 : 0,
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Text(icon, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 2800),
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 80),
+        padding: EdgeInsets.zero,
+      ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _ctx = context;
+    final provider = Provider.of<AppData>(context);
+    final alreadyWinked = provider.hasSentInterest(widget.user.id);
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        widget.onTap();
+      },
+      onLongPressStart: _start,
+      onLongPressEnd: _end,
+      onLongPressCancel: _cancel,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_progressCtrl, _pulseCtrl]),
+        builder: (context, _) => _buildCard(alreadyWinked),
+      ),
+    )
+        .animate()
+        .fadeIn(delay: (widget.index * 80).ms)
+        .scale(
+          begin: const Offset(0.85, 0.85),
+          end: const Offset(1, 1),
+          duration: 400.ms,
+          curve: Curves.easeOutBack,
+        );
+  }
+
+  Widget _buildCard(bool alreadyWinked) {
+    final p = _progressCtrl.value;
+    final glow = _isPressed ? (0.3 + 0.12 * _pulseCtrl.value) * p : 0.0;
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
+      children: [
+        Container(
+          width: 100,
+          margin: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+          decoration: BoxDecoration(
+            color: _isCompleted
+                ? AppTheme.accent.withValues(alpha: 0.15)
+                : AppTheme.surface2,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: _isPressed
+                  ? AppTheme.accent.withValues(alpha: 0.4 + 0.6 * p)
+                  : alreadyWinked
+                      ? AppTheme.accent.withValues(alpha: 0.28)
+                      : Colors.white10,
+              width: _isPressed ? 1.5 : (alreadyWinked ? 1.2 : 1.0),
+            ),
+            boxShadow: glow > 0
+                ? [
+                    BoxShadow(
+                      color: AppTheme.accent.withValues(alpha: glow),
+                      blurRadius: 24 * p,
+                      spreadRadius: 4 * p,
+                    )
+                  ]
+                : null,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildAvatar(alreadyWinked),
+              const SizedBox(height: 8),
+              Text(
+                widget.user.name.split(' ').first,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: alreadyWinked ? Colors.white54 : Colors.white,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        ..._particles.map(_buildParticle),
+      ],
+    );
+  }
+
+  Widget _buildAvatar(bool alreadyWinked) {
+    final p = _progressCtrl.value;
+    return SizedBox(
+      width: 52,
+      height: 52,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (_showWink)
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.surface3,
+                border: Border.all(color: AppTheme.accent, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.accent.withValues(alpha: 0.5),
+                    blurRadius: 14,
+                  )
+                ],
+              ),
+              alignment: Alignment.center,
+              child: const Text('😉', style: TextStyle(fontSize: 24)),
+            )
+                .animate()
+                .scale(
+                  begin: const Offset(1.5, 1.5),
+                  end: const Offset(1.0, 1.0),
+                  duration: 400.ms,
+                  curve: Curves.elasticOut,
+                )
+          else
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.surface3,
+                border: Border.all(
+                  color: _isPressed ? Colors.transparent : Colors.white24,
+                ),
+                image: widget.user.profileImageUrl != null
+                    ? DecorationImage(
+                        image: widget.user.profileImageUrl!.startsWith('http')
+                            ? NetworkImage(widget.user.profileImageUrl!)
+                                as ImageProvider
+                            : FileImage(File(widget.user.profileImageUrl!)),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              alignment: Alignment.center,
+              child: widget.user.profileImageUrl == null
+                  ? Text(widget.user.avatar,
+                      style: const TextStyle(fontSize: 22))
+                  : null,
+            ),
+          if (_isPressed)
+            SizedBox(
+              width: 52,
+              height: 52,
+              child: CircularProgressIndicator(
+                value: _isCompleted ? 1.0 : p,
+                strokeWidth: 3.0,
+                backgroundColor: Colors.white10,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  _isCompleted
+                      ? Colors.greenAccent
+                      : Color.lerp(AppTheme.accent, Colors.greenAccent, p)!,
+                ),
+                strokeCap: StrokeCap.round,
+              ),
+            ),
+          // Already-winked indicator badge
+          if (alreadyWinked && !_isPressed && !_showWink)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: 17,
+                height: 17,
+                decoration: BoxDecoration(
+                  color: AppTheme.surface2,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.accent.withValues(alpha: 0.5),
+                    width: 1,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: const Text('👁️', style: TextStyle(fontSize: 8)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParticle(_Particle particle) {
+    final left = (50.0 + particle.dx - 8).clamp(-30.0, 130.0);
+    return Positioned(
+      key: ValueKey(particle.id),
+      left: left,
+      top: 5,
+      child: IgnorePointer(
+        child: Text(particle.emoji, style: const TextStyle(fontSize: 16))
+            .animate()
+            .moveY(begin: 0, end: -85, duration: 950.ms, curve: Curves.easeOut)
+            .fadeOut(duration: 850.ms)
+            .scale(
+              begin: const Offset(0.5, 0.5),
+              end: const Offset(1.1, 1.1),
+              duration: 350.ms,
+            ),
+      ),
     );
   }
 }

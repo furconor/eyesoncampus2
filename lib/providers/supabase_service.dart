@@ -965,17 +965,20 @@ class SupabaseService extends ChangeNotifier {
     }
   }
   // MEKANLARI (VENUES) GETİR
-  Future<List<app_models.Venue>> getVenues({String? universityId}) async {
+  Future<List<app_models.Venue>> getVenues({String? universityName}) async {
     try {
+      debugPrint('🏛️ getVenues called — universityName: $universityName');
       var query = _client.from('venues').select();
-      
-      if (universityId != null) {
-        query = query.eq('university', universityId);
+
+      if (universityName != null) {
+        query = query.eq('university', universityName);
       }
 
       final response = await query.order('name', ascending: true);
+      final list = response as List;
+      debugPrint('🏛️ getVenues returned ${list.length} rows. First: ${list.isNotEmpty ? list.first : "—"}');
 
-      return (response as List).map((data) => app_models.Venue(
+      return list.map((data) => app_models.Venue(
         id: data['id'],
         name: data['name'],
         icon: data['icon'] ?? '🏢',
@@ -989,8 +992,8 @@ class SupabaseService extends ChangeNotifier {
         category: data['category'] ?? _inferCategory(data['name'], data['icon']),
         imageUrl: data['image_url'],
       )).toList();
-    } catch (e) {
-      debugPrint('Error fetching venues: $e');
+    } catch (e, st) {
+      debugPrint('❌ getVenues error: $e\n$st');
       return [];
     }
   }

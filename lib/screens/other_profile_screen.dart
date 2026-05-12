@@ -9,7 +9,6 @@ import '../providers/app_data_provider.dart';
 import '../models/user_model.dart';
 import '../screens/chat_detail_screen.dart';
 import '../widgets/point_notification_overlay.dart';
-import '../widgets/glass_container.dart';
 
 class OtherProfileScreen extends StatefulWidget {
   final User user;
@@ -145,8 +144,6 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
                           const SizedBox(height: 20),
                           if (!showAnon) ...[
                             _buildBioSection(widget.user),
-                            const SizedBox(height: 32),
-                            _buildEnergyDisplay(widget.user),
                             const SizedBox(height: 40),
                             _buildPhotoGallery(widget.user),
                             const SizedBox(height: 40),
@@ -242,45 +239,6 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
     ).animate().fadeIn(delay: 300.ms, duration: 600.ms);
   }
 
-  Widget _buildEnergyDisplay(User user) {
-    return GlassContainer(
-      blur: 20,
-      opacity: 0.15,
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: Colors.white12),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'ENERJİ',
-                  style: TextStyle(fontFamily: 'Space Mono', fontSize: 10, letterSpacing: 2, color: Colors.white54, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      '${user.points}',
-                      style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: AppTheme.accent, fontFamily: 'Space Mono'),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.bolt, color: AppTheme.accent, size: 28),
-                  ],
-                ),
-              ],
-            ),
-            const Icon(Icons.flash_on_rounded, color: Colors.white10, size: 64),
-          ],
-        ),
-      ),
-    ).animate().fadeIn(delay: 400.ms, duration: 600.ms).slideY(begin: 0.1, end: 0);
-  }
 
   Widget _buildPhotoGallery(User user) {
     final photos = user.diaryPhotos;

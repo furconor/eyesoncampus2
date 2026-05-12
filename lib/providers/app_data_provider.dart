@@ -1160,7 +1160,16 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
   // Real venues from database
   Future<void> _loadVenues() async {
     final supabase = SupabaseService();
-    final dbVenues = await supabase.getVenues(universityId: _currentUser?.universityId);
+
+    // university adını önce profilden, yoksa _universities listesinden türet
+    String? uniName = _currentUser?.university;
+    if (uniName == null && _currentUser?.universityId != null) {
+      final match = _universities.where((u) => u.id == _currentUser!.universityId).firstOrNull;
+      uniName = match?.name;
+    }
+    debugPrint('🏛️ _loadVenues — uniName: $uniName');
+
+    final dbVenues = await supabase.getVenues(universityName: uniName);
     
     if (dbVenues.isNotEmpty) {
       _venues = dbVenues;
