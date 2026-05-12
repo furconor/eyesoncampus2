@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/app_data_provider.dart';
 import '../providers/supabase_service.dart';
 import 'main_layout.dart';
-import '../models/app_models.dart';
 import '../utils/content_filter.dart';
 import 'legal_screen.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -33,118 +31,101 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _acceptedTerms = false;
   bool _confirmedAge = false;
   String? _selectedUniversityId;
-  bool _isUniversityLocked = false;
   
   void _nextStep() async {
     if (_step == 1) {
       final email = _emailController.text.trim().toLowerCase();
-      
+
       if (email == 'apple_test@eyesoncampus.com') {
-        setState(() {
-          _isUniversityLocked = false;
-        });
-      } else {
-        if (!email.contains('@')) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Geçerli bir e-posta giriniz.')),
-          );
-          return;
-        }
-        
-        final domain = email.split('@').last;
-        final namePart = email.split('@').first;
-        if (_nameController.text.isEmpty) {
-          _nameController.text = namePart;
-        }
-        final provider = Provider.of<AppData>(context, listen: false);
-        
-        final match = provider.universities.where((u) {
-          if (u.domain == null) return false;
-          final domains = u.domain!.toLowerCase().split(',').map((d) => d.trim()).toList();
-          return domains.contains(domain);
-        }).toList();
-        
-        if (match.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Bu e-posta adresiyle kayıt yapılamamaktadır. Lütfen university mailinizi kullanın.')),
-          );
-          return;
-        }
-        
-        setState(() {
-          _selectedUniversityId = match.first.id;
-          _isUniversityLocked = true;
-        });
+        _nameController.text = 'apple_test';
+        setState(() => _step = 2);
+        return;
       }
-    }
-    if (_step == 2 && _passwordController.text.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Şifreniz en az 6 karakter olmalıdır.')),
-      );
+
+      if (!email.contains('@')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Geçerli bir e-posta giriniz.')),
+        );
+        return;
+      }
+
+      final domain = email.split('@').last;
+      _nameController.text = email.split('@').first;
+
+      final provider = Provider.of<AppData>(context, listen: false);
+      final match = provider.universities.where((u) {
+        if (u.domain == null) return false;
+        final domains = u.domain!.toLowerCase().split(',').map((d) => d.trim()).toList();
+        return domains.contains(domain);
+      }).toList();
+
+      if (match.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bu e-posta adresiyle kayıt yapılamamaktadır. Lütfen üniversite mailinizi kullanın.')),
+        );
+        return;
+      }
+
+      setState(() {
+        _selectedUniversityId = match.first.id;
+        _step = 2;
+      });
       return;
     }
-    
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 1)); // Mock network delay
-    setState(() {
-      _isLoading = false;
-      if (_step < 3) {
-        _step++;
-      } else {
-        _completeRegistration();
+
+    if (_step == 2) {
+      if (!ContentFilter.isClean(_deptController.text) || !ContentFilter.isClean(_yearController.text)) {
+        _showError(ContentFilter.getBlockedMessage(Provider.of<AppData>(context, listen: false).currentLanguage));
+        return;
       }
-    });
+      setState(() => _step = 3);
+      return;
+    }
+
+    if (_step == 3) {
+      if (_passwordController.text.length < 6) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Şifreniz en az 6 karakter olmalıdır.')),
+        );
+        return;
+      }
+      if (!_acceptedTerms || !_confirmedAge) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Devam etmek için sözleşmeleri onaylamalısın.')),
+        );
+        return;
+      }
+      await _completeRegistration();
+    }
   }
   
-  void _completeRegistration() async {
-    if (_nameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ad alanı zorunludur.')),
-      );
-      return;
-    }
-    
-    // Profanity Filter Check
-    final String nameText = _nameController.text;
-    final String deptText = _deptController.text;
-    final String yearText = _yearController.text;
-
-    if (!ContentFilter.isClean(nameText) || !ContentFilter.isClean(deptText) || !ContentFilter.isClean(yearText)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ContentFilter.getBlockedMessage(Provider.of<AppData>(context, listen: false).currentLanguage))),
-      );
-      return;
-    }
-    
+  Future<void> _completeRegistration() async {
     setState(() => _isLoading = true);
     final supabase = SupabaseService();
-    
-    // Eger kullanıcı zaten authenticated ise (Giriş yaparak bu adıma geldiyse) 
-    // kayıt adımını atla direkt profil oluşturmaya geç
+
+    // Kullanıcı zaten authenticated ise (giriş yapıp profile geldiyse) direkt profil oluştur
     if (supabase.isAuthenticated) {
       await _finalizingRegistration();
       if (mounted) setState(() => _isLoading = false);
       return;
     }
-    
-    String? result = await supabase.signUpWithEmail(_emailController.text.trim().toLowerCase(), _passwordController.text);
-    
+
+    final String? result = await supabase.signUpWithEmail(
+      _emailController.text.trim().toLowerCase(),
+      _passwordController.text,
+    );
+
     if (result == 'verification_required') {
-      setState(() {
-        _isLoading = false;
-        _step = 4; // OTP Step
-      });
+      if (mounted) setState(() { _isLoading = false; _step = 4; });
       return;
     }
-    
+
     if (result == null) {
-      _finalizingRegistration();
+      await _finalizingRegistration();
     } else {
       _showError(result);
     }
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
+    if (mounted) setState(() => _isLoading = false);
   }
 
   String _getFriendlyErrorMessage(String? error) {
@@ -346,9 +327,8 @@ class _AuthScreenState extends State<AuthScreen> {
                           setState(() {
                             if (match.isNotEmpty) {
                               _selectedUniversityId = match.first.id;
-                              _isUniversityLocked = true;
                             }
-                            _step = 3;
+                            _step = 2;
                             _isLoading = false;
                           });
                           // Use a nice informational snackbar instead of default
@@ -670,21 +650,31 @@ class _AuthScreenState extends State<AuthScreen> {
       appBar: _step > 0 ? AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, size: 18),
-          onPressed: () {
-            setState(() {
-              _step--;
-            });
-          },
+          onPressed: () => setState(() => _step--),
         ),
         title: Text(
-          _step == 1 ? 'E-posta' : (_step == 2 ? 'Doğrulama' : 'Profil'),
+          _step == 1 ? 'E-posta'
+          : _step == 2 ? 'Profil'
+          : _step == 3 ? 'Güvenlik'
+          : 'Doğrulama',
           style: const TextStyle(color: AppTheme.text, fontSize: 16),
         ),
       ) : null,
       body: SafeArea(
-        child: _isLoading 
+        child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: AppTheme.accent))
-            : _buildBody(),
+            : Column(
+                children: [
+                  if (_step >= 1 && _step <= 3)
+                    LinearProgressIndicator(
+                      value: _step / 3,
+                      minHeight: 2,
+                      backgroundColor: Colors.white10,
+                      valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accent),
+                    ),
+                  Expanded(child: _buildBody()),
+                ],
+              ),
       ),
     );
   }
@@ -693,8 +683,8 @@ class _AuthScreenState extends State<AuthScreen> {
     switch (_step) {
       case 0: return _buildSplashOption();
       case 1: return _buildEmailStep();
-      case 2: return _buildVerificationStep();
-      case 3: return _buildProfileStep();
+      case 2: return _buildProfileStep();
+      case 3: return _buildSecurityStep();
       case 4: return _buildSignupVerificationStep();
       default: return const SizedBox.shrink();
     }
@@ -824,26 +814,6 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildAgreementCheckbox({required bool value, required ValueChanged<bool?> onChanged, required Widget title}) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 24, height: 24,
-          child: Checkbox(
-            value: value,
-            onChanged: onChanged,
-            activeColor: AppTheme.accent,
-            checkColor: Colors.black,
-            side: const BorderSide(color: AppTheme.muted, width: 1),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: title),
-      ],
-    );
-  }
-
   Widget _buildLangBtn(String label, bool active, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -963,43 +933,11 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildVerificationStep() {
-    final provider = Provider.of<AppData>(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            provider.t('password_label'),
-            style: const TextStyle(fontFamily: 'Cormorant Garamond', fontSize: 32, color: AppTheme.accent),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            provider.t('password_desc'),
-            style: const TextStyle(color: AppTheme.muted, fontSize: 13, height: 1.6),
-          ),
-          const SizedBox(height: 40),
-          _buildPremiumTextField(
-            controller: _passwordController,
-            hint: provider.t('password_hint'),
-            obscureText: true,
-            icon: Icons.lock_outline,
-            fontSize: 24,
-            letterSpacing: 4,
-          ),
-          const Spacer(),
-          _buildPremiumButton(
-            onPressed: _nextStep,
-            label: 'DEVAM ET',
-          ),
-        ],
-      ),
-    );
-  }
-  
+  // Adım 2 — Bölüm + Sınıf (üniversite chip olarak gösterilir, isim alanı yok)
   Widget _buildProfileStep() {
     final provider = Provider.of<AppData>(context);
+    final uniName = _universityIdToName(context, _selectedUniversityId);
+    final username = _nameController.text.isNotEmpty ? _nameController.text : '';
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Column(
@@ -1011,47 +949,93 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            provider.t('profile_desc'),
+            'Kampüste seni nasıl tanımlayalım?',
             style: const TextStyle(color: AppTheme.muted, fontSize: 13, height: 1.6),
           ),
-          const SizedBox(height: 40),
-          _buildInputLabel('Üniversite / University'),
-          _isUniversityLocked
-            ? _buildLockedUniversityField(_universityIdToName(context, _selectedUniversityId) ?? '')
-            : Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: AppTheme.surface3.withOpacity(0.4),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.border.withOpacity(0.3)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedUniversityId ?? (provider.universities.isNotEmpty ? provider.universities.first.id : null),
-                    items: provider.universities
-                        .map((u) => DropdownMenuItem(value: u.id, child: Text(u.name, style: const TextStyle(color: AppTheme.text, fontSize: 14))))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedUniversityId = val);
-                    },
-                    decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero),
-                    dropdownColor: AppTheme.surface2,
-                    hint: Text(provider.t('select_university'), style: const TextStyle(color: AppTheme.muted, fontSize: 14)),
-                  ),
-                ),
-              ),
-          const SizedBox(height: 20),
-          _buildInputLabel(provider.t('full_name')),
-          _buildPremiumTextField(controller: _nameController, hint: provider.t('full_name'), icon: Icons.person_outline, readOnly: true),
-          const SizedBox(height: 20),
+          const SizedBox(height: 28),
+          // Read-only info rows
+          _buildReadOnlyField(label: 'Kullanıcı Adı', value: username, icon: Icons.person_outline),
+          if (uniName != null) ...[
+            const SizedBox(height: 12),
+            _buildReadOnlyField(label: 'Üniversite', value: uniName, icon: Icons.school_outlined),
+          ],
+          const SizedBox(height: 28),
           _buildInputLabel(provider.t('dept')),
-          _buildPremiumTextField(controller: _deptController, hint: 'Örn: Bilgisayar Müh.', icon: Icons.school_outlined),
+          _buildPremiumTextField(controller: _deptController, hint: 'Örn: Bilgisayar Müh.', icon: Icons.menu_book_outlined),
           const SizedBox(height: 20),
           _buildInputLabel(provider.t('class')),
           _buildPremiumTextField(controller: _yearController, hint: 'Örn: 2. Sınıf', icon: Icons.calendar_today_outlined),
-          
-          const SizedBox(height: 32),
-          // Terms & Privacy
+          const SizedBox(height: 48),
+          _buildPremiumButton(onPressed: _nextStep, label: 'DEVAM ET'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReadOnlyField({required String label, required String value, required IconData icon}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: AppTheme.muted, fontSize: 11, letterSpacing: 0.8),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppTheme.surface2,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.border.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: AppTheme.muted, size: 18),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  value,
+                  style: const TextStyle(color: AppTheme.muted, fontSize: 14),
+                ),
+              ),
+              const Icon(Icons.lock_outline, color: AppTheme.border, size: 14),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Adım 3 — Şifre + Sözleşmeler
+  Widget _buildSecurityStep() {
+    final provider = Provider.of<AppData>(context);
+    final canProceed = _acceptedTerms && _confirmedAge;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Güvenlik',
+            style: TextStyle(fontFamily: 'Cormorant Garamond', fontSize: 32, color: AppTheme.accent),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Hesabın için güçlü bir şifre belirle.',
+            style: TextStyle(color: AppTheme.muted, fontSize: 13, height: 1.6),
+          ),
+          const SizedBox(height: 40),
+          _buildInputLabel('Şifre'),
+          _buildPremiumTextField(
+            controller: _passwordController,
+            hint: 'En az 6 karakter',
+            obscureText: true,
+            icon: Icons.lock_outline,
+            fontSize: 24,
+            letterSpacing: 4,
+          ),
+          const SizedBox(height: 40),
           _buildAgreementItem(
             value: _acceptedTerms,
             onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
@@ -1085,28 +1069,20 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
           ),
-          
           const SizedBox(height: 16),
           _buildAgreementItem(
             value: _confirmedAge,
             onChanged: (v) => setState(() => _confirmedAge = v ?? false),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    provider.currentLanguage == 'tr' 
-                      ? '18 yaşından büyük olduğumu onaylıyorum.' 
-                      : 'I confirm that I am over 18 years old.',
-                    style: const TextStyle(color: AppTheme.text, fontSize: 13, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
+            child: Text(
+              provider.currentLanguage == 'tr'
+                  ? '18 yaşından büyük olduğumu onaylıyorum.'
+                  : 'I confirm that I am over 18 years old.',
+              style: const TextStyle(color: AppTheme.text, fontSize: 13, fontWeight: FontWeight.bold),
             ),
           ),
-          
           const SizedBox(height: 48),
           _buildPremiumButton(
-            onPressed: (_acceptedTerms && _confirmedAge) ? _completeRegistration : null,
+            onPressed: canProceed ? _nextStep : null,
             label: provider.t('complete_reg'),
           ),
         ],
@@ -1136,28 +1112,6 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildLockedUniversityField(String name) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: AppTheme.surface3.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              name,
-              style: const TextStyle(color: AppTheme.muted, fontSize: 14),
-            ),
-          ),
-          const Icon(Icons.lock_outline, color: AppTheme.muted, size: 18),
-        ],
-      ),
-    );
-  }
-
   Widget _buildInputLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0, left: 4),
@@ -1172,28 +1126,6 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController ctrl, String hint) {
-    return TextField(
-      controller: ctrl,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: AppTheme.muted),
-        filled: true,
-        fillColor: AppTheme.surface3,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppTheme.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppTheme.border),
-        ),
-      ),
-      style: const TextStyle(color: AppTheme.text),
-    );
-  }
-
   String? _universityIdToName(BuildContext context, String? id) {
     if (id == null) return null;
     try {
@@ -1205,7 +1137,6 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildSignupVerificationStep() {
-    final provider = Provider.of<AppData>(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Column(
