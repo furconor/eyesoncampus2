@@ -600,6 +600,20 @@ class SupabaseService extends ChangeNotifier {
     }
   }
 
+  // GÜNLÜK RESET: Eşleşmeyenlerin swipe kayıtlarını sil
+  Future<void> deleteUnmatchedSwipes(List<String> receiverIds) async {
+    if (!isAuthenticated || receiverIds.isEmpty) return;
+    try {
+      await _client
+          .from('swipes')
+          .delete()
+          .eq('sender_id', currentUserId!)
+          .inFilter('receiver_id', receiverIds);
+    } catch (e) {
+      debugPrint('Error deleting unmatched swipes: $e');
+    }
+  }
+
   // GÖNDERİLEN GÖZ KIRPMALARI GETİR
   Future<List<String>> getSentInterests() async {
     if (!isAuthenticated) return [];
@@ -964,6 +978,27 @@ class SupabaseService extends ChangeNotifier {
       return false;
     }
   }
+  // APP IMAGES (onboarding / auth backgrounds) — Supabase Storage'dan çeker
+  Future<Map<String, List<String>>> getAppImages() async {
+    const bucket = 'app-images';
+    const screens = ['auth', 'onboarding'];
+    final Map<String, List<String>> result = {};
+    for (final screen in screens) {
+      try {
+        final files = await _client.storage.from(bucket).list(path: screen);
+        final urls = files
+            .where((f) => f.name != '.emptyFolderPlaceholder')
+            .map((f) => _client.storage.from(bucket).getPublicUrl('$screen/${f.name}'))
+            .toList();
+        urls.sort();
+        if (urls.isNotEmpty) result[screen] = urls;
+      } catch (e) {
+        debugPrint('❌ getAppImages[$screen] error: $e');
+      }
+    }
+    return result;
+  }
+
   // MEKANLARI (VENUES) GETİR
   Future<List<app_models.Venue>> getVenues({String? universityName}) async {
     try {

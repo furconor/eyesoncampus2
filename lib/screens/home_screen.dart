@@ -12,6 +12,7 @@ import 'notifications_screen.dart';
 import 'other_profile_screen.dart';
 import 'venue_detail_screen.dart';
 import 'daily_quiz_screen.dart';
+import 'radar_map_screen.dart';
 import '../widgets/match_celebration_overlay.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -75,7 +76,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 SliverToBoxAdapter(child: _buildDailyQuizCard(context)),
 
               SliverToBoxAdapter(
-                child: _buildRadarVisualization(users, isCheckedIn ? _findCurrentVenue(provider, me?.campusZone) : null),
+                child: GestureDetector(
+                  onTap: () {
+                    if (!isCheckedIn) return;
+                    HapticFeedback.mediumImpact();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => RadarMapScreen(
+                          users: users,
+                          venue: _findCurrentVenue(provider, me?.campusZone),
+                        ),
+                      ),
+                    );
+                  },
+                  child: _buildRadarVisualization(users, isCheckedIn ? _findCurrentVenue(provider, me?.campusZone) : null),
+                ),
               ),
 
               SliverToBoxAdapter(
@@ -105,24 +121,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               else if (isCheckedIn)
                 SliverToBoxAdapter(
                   child: SizedBox(
-                    height: 145,
+                    height: 152,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       physics: const BouncingScrollPhysics(),
                       itemCount: users.length,
-                      itemBuilder: (context, index) {
-                        return _RadarUserCard(
-                          user: users[index],
-                          index: index,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => OtherProfileScreen(user: users[index]),
-                            ),
+                      itemBuilder: (context, index) => _RadarUserCard(
+                        user: users[index],
+                        index: index,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => OtherProfileScreen(user: users[index]),
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
                   ),
                 )
@@ -1119,14 +1133,14 @@ class _RadarUserCardState extends State<_RadarUserCard>
       alignment: Alignment.topCenter,
       children: [
         Container(
-          width: 100,
-          margin: const EdgeInsets.only(right: 12),
-          padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+          width: 110,
+          margin: const EdgeInsets.only(right: 10),
+          padding: const EdgeInsets.fromLTRB(10, 14, 10, 12),
           decoration: BoxDecoration(
             color: _isCompleted
                 ? AppTheme.accent.withValues(alpha: 0.15)
                 : AppTheme.surface2,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: _isPressed
                   ? AppTheme.accent.withValues(alpha: 0.4 + 0.6 * p)
@@ -1136,24 +1150,18 @@ class _RadarUserCardState extends State<_RadarUserCard>
               width: _isPressed ? 1.5 : (alreadyWinked ? 1.2 : 1.0),
             ),
             boxShadow: glow > 0
-                ? [
-                    BoxShadow(
-                      color: AppTheme.accent.withValues(alpha: glow),
-                      blurRadius: 24 * p,
-                      spreadRadius: 4 * p,
-                    )
-                  ]
+                ? [BoxShadow(color: AppTheme.accent.withValues(alpha: glow), blurRadius: 24 * p, spreadRadius: 4 * p)]
                 : null,
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _buildAvatar(alreadyWinked),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
                 widget.user.name.split(' ').first,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: alreadyWinked ? Colors.white54 : Colors.white,
                 ),
@@ -1161,19 +1169,19 @@ class _RadarUserCardState extends State<_RadarUserCard>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (!alreadyWinked) ...[
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '−$winkCost',
-                      style: const TextStyle(fontSize: 9, color: AppTheme.accent, fontFamily: 'Space Mono'),
-                    ),
-                    const Icon(Icons.bolt, size: 10, color: AppTheme.accent),
-                  ],
+              const SizedBox(height: 3),
+              Text(
+                widget.user.name.split(' ').length > 1
+                    ? widget.user.name.split(' ').last
+                    : widget.user.department.split(' ').first,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white38,
                 ),
-              ],
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
@@ -1185,15 +1193,15 @@ class _RadarUserCardState extends State<_RadarUserCard>
   Widget _buildAvatar(bool alreadyWinked) {
     final p = _progressCtrl.value;
     return SizedBox(
-      width: 52,
-      height: 52,
+      width: 44,
+      height: 44,
       child: Stack(
         alignment: Alignment.center,
         children: [
           if (_showWink)
             Container(
-              width: 46,
-              height: 46,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.surface3,
@@ -1206,7 +1214,7 @@ class _RadarUserCardState extends State<_RadarUserCard>
                 ],
               ),
               alignment: Alignment.center,
-              child: const Text('😉', style: TextStyle(fontSize: 24)),
+              child: const Text('😉', style: TextStyle(fontSize: 20)),
             )
                 .animate()
                 .scale(
@@ -1217,8 +1225,8 @@ class _RadarUserCardState extends State<_RadarUserCard>
                 )
           else
             Container(
-              width: 46,
-              height: 46,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.surface3,
@@ -1238,13 +1246,13 @@ class _RadarUserCardState extends State<_RadarUserCard>
               alignment: Alignment.center,
               child: widget.user.profileImageUrl == null
                   ? Text(widget.user.avatar,
-                      style: const TextStyle(fontSize: 22))
+                      style: const TextStyle(fontSize: 18))
                   : null,
             ),
           if (_isPressed)
             SizedBox(
-              width: 52,
-              height: 52,
+              width: 44,
+              height: 44,
               child: CircularProgressIndicator(
                 value: _isCompleted ? 1.0 : p,
                 strokeWidth: 3.0,

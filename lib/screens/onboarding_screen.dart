@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import 'auth_screen.dart';
 import '../providers/app_data_provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/background_media.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -34,30 +35,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<AppData>(context);
     
+    const _fallbackImages = [
+      'https://upload.wikimedia.org/wikipedia/commons/b/bf/Anderson_Hall%2C_Bogazici_University.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/ITU_Ta%C5%9Fk%C4%B1%C5%9Fla_Campus.JPG/1280px-ITU_Ta%C5%9Fk%C4%B1%C5%9Fla_Campus.JPG',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/METU_Library.jpg/1280px-METU_Library.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/d/da/Wisteria_south_campus_Bogazici_University_2022.jpg',
+    ];
+    final dbImages = provider.onboardingImages;
+    String _img(int i) => (dbImages.length > i && dbImages[i].isNotEmpty) ? dbImages[i] : _fallbackImages[i];
+
     final List<Map<String, dynamic>> onboardingData = [
       {
         'icon': Icons.location_on_outlined,
         'title': provider.t('onboarding_title_1'),
         'desc': provider.t('onboarding_desc_1'),
-        'image': 'assets/images/onboarding_1.png',
+        'image': _img(0),
       },
       {
         'icon': Icons.chat_bubble_outline,
         'title': provider.t('onboarding_title_2'),
         'desc': provider.t('onboarding_desc_2'),
-        'image': 'assets/images/onboarding_2.png',
+        'image': _img(1),
       },
       {
         'icon': Icons.school_outlined,
         'title': provider.t('onboarding_title_3'),
         'desc': provider.t('onboarding_desc_3'),
-        'image': 'assets/images/onboarding_3.png',
+        'image': _img(2),
       },
       {
         'icon': Icons.security_outlined,
         'title': provider.t('onboarding_title_4'),
         'desc': provider.t('onboarding_desc_4'),
-        'image': 'assets/images/onboarding_1.png', // Reuse first for now
+        'image': _img(3),
       },
     ];
 
@@ -65,19 +75,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       backgroundColor: AppTheme.bg,
       body: Stack(
         children: [
-          // Background Image with Ken Burns effect (simulated with scale)
           AnimatedSwitcher(
             duration: const Duration(seconds: 1),
-            child: Container(
+            child: SizedBox.expand(
               key: ValueKey(_currentIndex),
-              width: double.infinity,
-              height: double.infinity,
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage(onboardingData[_currentIndex]['image'] as String),
-                  fit: BoxFit.cover,
-                  opacity: 0.35,
-                ),
+              child: BackgroundMedia(
+                url: onboardingData[_currentIndex]['image'] as String,
+                opacity: 0.65,
+                onVideoEnd: _nextPage,
               ),
             ),
           ),
@@ -90,11 +95,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 end: Alignment.bottomCenter,
                 colors: [
                   Colors.black.withOpacity(0.0),
-                  Colors.black.withOpacity(0.4),
-                  AppTheme.bg.withOpacity(0.8),
+                  Colors.black.withOpacity(0.15),
+                  AppTheme.bg.withOpacity(0.6),
                   AppTheme.bg,
                 ],
-                stops: const [0, 0.4, 0.7, 1],
+                stops: const [0, 0.4, 0.75, 1],
               ),
             ),
           ),
@@ -107,7 +112,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const SizedBox(width: 40), // Placeholder to keep layout balanced after removing clock
+                      Text(
+                        '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+                        style: const TextStyle(fontFamily: 'Space Mono', fontSize: 12, color: AppTheme.text, fontWeight: FontWeight.bold),
+                      ),
                       _buildLangToggle(provider),
                       TextButton(
                         onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AuthScreen())),
@@ -198,23 +206,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 20),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                (_currentIndex == onboardingData.length - 1
-                                    ? provider.t('onboarding_start').toUpperCase()
-                                    : provider.t('onboarding_next').toUpperCase()),
-                                style: const TextStyle(
-                                  fontFamily: 'Space Mono',
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 2,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.arrow_forward_rounded, size: 16),
-                            ],
+                          child: Text(
+                            (_currentIndex == onboardingData.length - 1
+                                ? provider.t('onboarding_start')
+                                : provider.t('onboarding_next')),
+                            style: const TextStyle(fontFamily: 'Space Mono', fontWeight: FontWeight.bold, letterSpacing: 2),
                           ),
                         ),
                       ),
