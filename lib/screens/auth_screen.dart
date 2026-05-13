@@ -36,7 +36,14 @@ class _AuthScreenState extends State<AuthScreen> {
   
   void _nextStep() async {
     if (_step == 1) {
-      final email = _emailController.text.trim().toLowerCase();
+      final rawEmail = _emailController.text.trim();
+      if (rawEmail != rawEmail.toLowerCase()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('E-posta adresi tamamen küçük harflerle yazılmalıdır.')),
+        );
+        return;
+      }
+      final email = rawEmail;
 
       if (email == 'apple_test@eyesoncampus.com') {
         _nameController.text = 'apple_test';
@@ -52,7 +59,14 @@ class _AuthScreenState extends State<AuthScreen> {
       }
 
       final domain = email.split('@').last;
-      _nameController.text = email.split('@').first;
+      final localPart = email.split('@').first;
+      final formattedName = localPart.split('.').map((p) {
+        if (p.isEmpty) return '';
+        final lettersOnly = p.replaceAll(RegExp(r'[^a-zA-ZğüşıöçĞÜŞİÖÇ]'), '');
+        if (lettersOnly.isEmpty) return p;
+        return lettersOnly[0].toUpperCase() + lettersOnly.substring(1).toLowerCase();
+      }).join(' ').trim();
+      _nameController.text = formattedName;
 
       final provider = Provider.of<AppData>(context, listen: false);
       final match = provider.universities.where((u) {
@@ -684,8 +698,8 @@ class _AuthScreenState extends State<AuthScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.0),
-                    AppTheme.bg.withValues(alpha: 0.50),
+                    Colors.black.withOpacity(0.0),
+                    AppTheme.bg.withOpacity(0.50),
                     AppTheme.bg,
                   ],
                   stops: const [0, 0.55, 1],
@@ -744,8 +758,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.0),
-                  Colors.black.withValues(alpha: 0.3),
+                  Colors.black.withOpacity(0.0),
+                  Colors.black.withOpacity(0.3),
                   AppTheme.bg,
                 ],
               ),
@@ -1031,7 +1045,7 @@ class _AuthScreenState extends State<AuthScreen> {
           decoration: BoxDecoration(
             color: AppTheme.surface2,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTheme.border.withValues(alpha: 0.4)),
+            border: Border.all(color: AppTheme.border.withOpacity(0.4)),
           ),
           child: Row(
             children: [

@@ -41,7 +41,7 @@ class NotificationService {
 
     // OneSignal Uzak Bildirim (Remote Push) Kurulumu
     OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-    OneSignal.initialize("8bacd470-963c-4d53-a994-a9e4a7f69287");
+    OneSignal.initialize("d6c94670-3295-4196-8f03-782b34f8bc80");
     OneSignal.Notifications.requestPermission(true);
   }
 

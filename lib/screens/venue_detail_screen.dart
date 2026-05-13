@@ -422,16 +422,43 @@ class _VenueDetailScreenState extends State<VenueDetailScreen> {
                     width: 24, height: 24,
                     child: CircularProgressIndicator(color: isCheckedIn ? AppTheme.red : Colors.black, strokeWidth: 3),
                   )
-                : Text(
-                    isCheckedIn ? 'MEKANDAN AYRIL' : 'BURADAYIM (-1 PWR)',
-                    style: TextStyle(
-                      fontFamily: 'Space Mono',
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: isCheckedIn ? AppTheme.red : Colors.black,
-                      letterSpacing: 2,
-                    ),
-                  ),
+                : isCheckedIn
+                    ? Text(
+                        'MEKANDAN AYRIL',
+                        style: TextStyle(
+                          fontFamily: 'Space Mono',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.red,
+                          letterSpacing: 2,
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'BURADAYIM (-1',
+                            style: TextStyle(
+                              fontFamily: 'Space Mono',
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const Icon(Icons.bolt_rounded, color: Colors.black, size: 18),
+                          const Text(
+                            ')',
+                            style: TextStyle(
+                              fontFamily: 'Space Mono',
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ],
+                      ),
           ),
         ),
       ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.5, end: 0),

@@ -50,7 +50,7 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
 
   // Data Lists
   List<User> _allUsers = [];
-  List<User> get allUsers => _allUsers;
+  List<User> get allUsers => _allUsers.where((u) => !_hiddenUserIds.contains(u.id)).toList();
   
   List<Venue> _venues = [];
   List<Venue> get venues => _venues;
@@ -62,9 +62,9 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
   Map<String, List<EventMessage>> _eventMessages = {};
   
   List<AppNotification> _notifications = [];
-  List<AppNotification> get notifications => _notifications;
+  List<AppNotification> get notifications => _notifications.where((n) => !_hiddenUserIds.contains(n.relatedUser?.id)).toList();
   
-  List<Conversation> get conversations => _conversations;
+  List<Conversation> get conversations => _conversations.where((c) => !_hiddenUserIds.contains(c.otherUser.id)).toList();
   
   List<Event> _events = [];
   List<Event> get events => _events;
@@ -196,8 +196,8 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
       if (toRemove.isNotEmpty) {
         unawaited(SupabaseService().deleteUnmatchedSwipes(toRemove));
       }
-      // 10'un üstündeyse koru, altındaysa 10'a tamamla
-      final resetPoints = _currentUser!.points < 10 ? 10 : _currentUser!.points;
+      // Ne olursa olsun 10'a sabitle (23.59 sıfırlaması)
+      final resetPoints = 10;
       _currentUser = _currentUser!.copyWith(points: resetPoints);
       await SupabaseService().updateProfile({'points': resetPoints});
       // Günlük sayaçları sıfırla
@@ -366,6 +366,11 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
         _matches = _conversations.map<String>((c) => c.otherUser.id).toSet();
         _sentInterests = (await supabase.getSentInterests()).toSet();
         _events = await supabase.getEvents(universityId: _currentUser?.universityId);
+
+        // Engellenen kullanıcıları yükle (dinamik filtreleme için)
+        final blockedList = await supabase.getBlockedUserIds();
+        _hiddenUserIds = blockedList.toSet();
+
         await _loadNotifications();
         _startRealtimeListeners();
         await _syncQuizState();
@@ -494,9 +499,19 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
     });
 
     if (success) {
+      final prefs = await SharedPreferences.getInstance();
+      
       final hadNoPhoto = _currentUser?.profileImageUrl == null || _currentUser!.profileImageUrl!.isEmpty;
       final nowHasPhoto = finalImageUrl != null && finalImageUrl.isNotEmpty;
-      final bonus = (hadNoPhoto && nowHasPhoto) ? 2 : 0;
+      
+      bool earnedProfilePoint = prefs.getBool('has_earned_profile_pic_point') ?? false;
+      int bonus = 0;
+      
+      if (nowHasPhoto && !earnedProfilePoint) {
+         bonus = 1;
+         await prefs.setBool('has_earned_profile_pic_point', true);
+      }
+
       final newPoints = (_currentUser?.points ?? 0) + bonus;
 
       _currentUser = updatedUser.copyWith(
@@ -522,8 +537,12 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
       final success = await updateProfile(_currentUser!.copyWith(diaryPhotos: newList));
       
       if (success) {
-        // Fotoğraf yükleme ödülü
-        await addPoints(1, 'Fotoğraf Yükleme');
+        final prefs = await SharedPreferences.getInstance();
+        int earnedDiary = prefs.getInt('diary_photos_points_earned') ?? 0;
+        if (earnedDiary < 6) {
+           await prefs.setInt('diary_photos_points_earned', earnedDiary + 1);
+           await addPoints(1, 'Fotoğraf Yükleme');
+        }
         return url;
       }
     }
@@ -848,26 +867,34 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
       return 'Yeterli enerjin yok! Enerjinin dolmasını bekle.';
     }
 
-    final supabase = SupabaseService();
-    final eventId = await supabase.createEvent(
-      title: title,
-      description: description,
-      location: location,
-      isLive: isLive,
-      startAt: startAt,
-      endAt: endAt,
-      universityId: _currentUser?.universityId,
-      category: category,
-    );
+    try {
+      final supabase = SupabaseService();
+      final eventId = await supabase.createEvent(
+        title: title,
+        description: description,
+        location: location,
+        isLive: isLive,
+        startAt: startAt,
+        endAt: endAt,
+        universityId: _currentUser?.universityId,
+        category: category,
+      );
 
-    if (eventId != null) {
-      // Deduct points for starting an event
-      await addPoints(-1, 'Etkinlik Başlatma');
-      await loadEvents();
-      notifyListeners();
-      return null; // Başarılı
+      if (eventId != null) {
+        // Deduct points for starting an event
+        await addPoints(-1, 'Etkinlik Başlatma');
+        await loadEvents();
+        notifyListeners();
+        return null; // Başarılı
+      }
+      return 'Etkinlik oluşturulurken bir hata oluştu.';
+    } catch (e) {
+      debugPrint('Event creation error: $e');
+      if (e.toString().contains('PostgrestException')) {
+        return 'Veritabanı hatası: ${e.toString().split('message: ').last.split(',').first}';
+      }
+      return 'Hata: $e';
     }
-    return 'Etkinlik oluşturulurken bir hata oluştu.';
   }
 
   Future<bool> joinEvent(String eventId, bool join) async {
@@ -892,16 +919,25 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
-    final success = await supabase.toggleEventJoin(eventId, join);
+    final isFakeEvent = eventId.startsWith('e');
+    final success = isFakeEvent ? true : await supabase.toggleEventJoin(eventId, join);
+    
     if (success) {
-      await loadEvents();
+      if (!isFakeEvent) {
+        await loadEvents();
+      } else {
+        // Manually toggle local fake event
+        _events[eventIdx] = _events[eventIdx].copyWith(
+          isJoined: join,
+          attendeesCount: _events[eventIdx].attendeesCount + (join ? 1 : -1)
+        );
+      }
       
       if (join) {
         final updatedEvent = _events.firstWhere((e) => e.id == eventId);
-        await addPoints(1, 'Etkinliğe Katılma');
         HapticFeedback.mediumImpact();
 
-        if (updatedEvent.attendeesCount == 3 && event.attendeesCount < 3 && event.createdBy != null) {
+        if (updatedEvent.attendeesCount >= 3 && event.attendeesCount < 3 && event.createdBy != null) {
            await supabase.updatePointsForUser(event.createdBy!, 2);
            debugPrint('Event creator bonus awarded for event: $eventId');
         }
@@ -1051,15 +1087,29 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
 
   void blockUser(String userId) async {
     _hiddenUserIds.add(userId);
-    _allUsers.removeWhere((User u) => u.id == userId);
-    _matches.remove(userId);
-    _sentInterests.remove(userId);
-    _conversations.removeWhere((c) => c.otherUser.id == userId);
-    _notifications.removeWhere((n) => n.relatedUser?.id == userId);
     notifyListeners();
     
     final supabase = SupabaseService();
     await supabase.blockUser(userId);
+  }
+
+  Future<bool> unblockUser(String userId) async {
+    final supabase = SupabaseService();
+    final success = await supabase.unblockUser(userId);
+    if (success) {
+      _hiddenUserIds.remove(userId);
+      // Kullanıcı listede yoksa, veritabanından çekip listeye geri ekle
+      if (!_allUsers.any((u) => u.id == userId)) {
+        try {
+          final profile = await supabase.getUserProfile(userId);
+          if (profile != null) {
+            _allUsers.add(profile);
+          }
+        } catch (_) {}
+      }
+      notifyListeners();
+    }
+    return success;
   }
 
   void reportUser(String userId, String reason) async {
@@ -1329,7 +1379,7 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
         
         // If this is a new wink we haven't awarded points for yet
         if (!awardedWinks.contains(senderId)) {
-           await addPoints(1, 'Göz kırpıldı!');
+           await addPoints(2, 'Göz kırpıldı!');
            awardedWinks.add(senderId);
            pointsUpdated = true;
         }
@@ -1347,8 +1397,8 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
         if (!awardedWinks.contains(senderId)) {
           NotificationService().showNotification(
             id: senderId.hashCode,
-            title: '👁 Biri sana göz kırptı!',
-            body: 'Kampüste birisi sana bakıyor. Sen de bakıyor musun?',
+            title: 'Biri sana göz kırptı',
+            body: 'Şu anda burada biri sana göz kırptı.',
             payload: 'look_$senderId',
           );
         }

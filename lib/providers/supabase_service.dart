@@ -456,6 +456,39 @@ class SupabaseService extends ChangeNotifier {
     }
   }
 
+  // Get single user profile
+  Future<app_models.User?> getUserProfile(String userId) async {
+    try {
+      final data = await _client.from('profiles').select().eq('id', userId).maybeSingle();
+      if (data == null) return null;
+      
+      return app_models.User(
+        id: data['id'],
+        name: data['name'] ?? 'Bilinmiyor',
+        university: data['university'] ?? 'Bilinmiyor',
+        universityId: data['university_id'],
+        department: data['department'] ?? 'Bilinmiyor',
+        year: data['year'] ?? 'Hazırlık',
+        bio: data['bio'] ?? '',
+        avatar: data['avatar'] ?? '🧑',
+        campusZone: data['campus_zone'] ?? 'Bilinmiyor',
+        isOnline: data['is_online'] ?? false,
+        profileImageUrl: data['profile_image_url'],
+        lastActive: data['last_active'] != null ? DateTime.parse(data['last_active']) : DateTime.now(),
+        lastCheckinAt: data['last_checkin_at'] != null ? DateTime.parse(data['last_checkin_at']) : null,
+        genderFlag: data['gender_flag'] ?? 'u',
+        points: data['points'] ?? 10,
+        quizStep: data['quiz_step'] ?? 0,
+        quizCompleted: data['quiz_completed'] ?? false,
+        lastEnergySyncAt: data['last_energy_sync_at'] != null ? DateTime.parse(data['last_energy_sync_at']) : null,
+        interests: _parseList(data['interests']),
+      );
+    } catch (e) {
+      debugPrint('Error fetching single user profile: $e');
+      return null;
+    }
+  }
+
   // TEST VE APPLE REVIEW İÇİN SAHTE VERİ YÜKLEME (SEED)
   Future<void> seedDummyData({String? targetZone}) async {
     final dummies = [
@@ -939,25 +972,44 @@ class SupabaseService extends ChangeNotifier {
   Future<List<app_models.User>> getBlockedUsers() async {
     if (!isAuthenticated) return [];
     try {
-      final response = await _client
+      // Step 1: blocked_user_id listesini çek
+      final blocksResponse = await _client
           .from('blocks')
-          .select('blocked_user_id, profiles!blocks_blocked_user_id_fkey(*)')
+          .select('blocked_user_id')
           .eq('blocker_id', currentUserId!);
-      
-      return (response as List).map((data) {
-        final profile = data['profiles'];
+
+      final blockedIds = (blocksResponse as List)
+          .map((row) => row['blocked_user_id'] as String)
+          .toList();
+
+      if (blockedIds.isEmpty) return [];
+
+      // Step 2: Profilleri ayrı sorguyla çek
+      final profilesResponse = await _client
+          .from('profiles')
+          .select()
+          .inFilter('id', blockedIds);
+
+      return (profilesResponse as List).map((profile) {
         return app_models.User(
           id: profile['id'],
-          name: profile['name'],
+          name: profile['name'] ?? 'İsimsiz',
           university: profile['university'] ?? 'İTÜ',
           department: profile['department'] ?? '',
           year: profile['year'] ?? '',
           bio: profile['bio'] ?? '',
           interests: _parseList(profile['interests']),
-          avatar: profile['avatar'] ?? '🧑',
+          avatar: (profile['avatar'] != null && profile['avatar'].startsWith('http'))
+              ? '🧑'
+              : (profile['avatar'] ?? '🧑'),
+          profileImageUrl: (profile['avatar'] != null && profile['avatar'].startsWith('http'))
+              ? profile['avatar']
+              : null,
           campusZone: profile['campus_zone'] ?? 'Bilinmiyor',
           isOnline: profile['is_online'] ?? false,
-          lastActive: profile['last_active'] != null ? DateTime.parse(profile['last_active']) : DateTime.now(),
+          lastActive: profile['last_active'] != null
+              ? DateTime.parse(profile['last_active'])
+              : DateTime.now(),
           genderFlag: profile['gender_flag'] ?? 'm',
         );
       }).toList();
@@ -967,17 +1019,64 @@ class SupabaseService extends ChangeNotifier {
     }
   }
 
+
   // Engellemeyi Kaldır
   Future<bool> unblockUser(String userId) async {
     if (!isAuthenticated) return false;
     try {
-      await _client.from('blocks').delete().eq('blocker_id', currentUserId!).eq('blocked_user_id', userId);
+      // 1. Gerçekten böyle bir engelleme var mı kontrol et
+      final check = await _client
+          .from('blocks')
+          .select()
+          .eq('blocker_id', currentUserId!)
+          .eq('blocked_user_id', userId);
+          
+      if (check.isEmpty) return true; // Zaten silinmiş/yok
+
+      // 2. Silmeyi dene
+      await _client
+          .from('blocks')
+          .delete()
+          .eq('blocker_id', currentUserId!)
+          .eq('blocked_user_id', userId);
+
+      // 3. Silinmiş mi diye tekrar kontrol et (RLS sessizce engellemiş olabilir)
+      final verify = await _client
+          .from('blocks')
+          .select()
+          .eq('blocker_id', currentUserId!)
+          .eq('blocked_user_id', userId);
+          
+      if (verify.isNotEmpty) {
+        debugPrint('❌ unblockUser BAŞARISIZ: Supabase RLS (Row Level Security) DELETE işlemine izin vermiyor!');
+        return false;
+      }
+
+      debugPrint('✅ unblockUser: $userId kaldırıldı');
       return true;
     } catch (e) {
       debugPrint('Error unblocking user: $e');
       return false;
     }
   }
+
+  // Sadece engellenen ID listesi — uygulama başlangıcında kullanılır
+  Future<List<String>> getBlockedUserIds() async {
+    if (!isAuthenticated) return [];
+    try {
+      final response = await _client
+          .from('blocks')
+          .select('blocked_user_id')
+          .eq('blocker_id', currentUserId!);
+      return (response as List)
+          .map((row) => row['blocked_user_id'] as String)
+          .toList();
+    } catch (e) {
+      debugPrint('Error fetching blocked user ids: $e');
+      return [];
+    }
+  }
+
   // APP IMAGES (onboarding / auth backgrounds) — Supabase Storage'dan çeker
   Future<Map<String, List<String>>> getAppImages() async {
     const bucket = 'app-images';
@@ -1105,10 +1204,11 @@ class SupabaseService extends ChangeNotifier {
     }
   }
 
-  // Göz kırpmaları filtrele (1 saatlik geçerlilik)
+  // Göz kırpmaları filtrele (Sadece o güne ait olanlar geçerli, 23.59'da sıfırlanır)
   // Bu metod swipes sorgusunu filtrelemek için kullanılacak
   String getWinkExpirationFilter() {
-    return DateTime.now().subtract(const Duration(hours: 2)).toIso8601String();
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day).toIso8601String();
   }
   // --- EVENTS ---
 
@@ -1251,32 +1351,43 @@ class SupabaseService extends ChangeNotifier {
     String? universityId,
     String? category,
   }) async {
-    if (!isAuthenticated) return null;
-    try {
-      final response = await _client.from('events').insert({
-        'title': title,
-        'description': description,
-        'location': location,
-        'is_live': isLive,
-        'university_id': universityId,
-        'date': DateTime.now().toIso8601String(),
-        'image_url': '', 
-        'created_by': currentUserId,
-        'start_at': startAt.toIso8601String(),
-        'end_at': endAt.toIso8601String(),
-        'category': category,
-      }).select().single();
+    if (!isAuthenticated) throw Exception('Auth hatası');
+    
+    Map<String, dynamic> insertData = {
+      'title': title,
+      'description': description,
+      'location': location,
+      'is_live': isLive,
+      'university_id': universityId,
+      'date': startAt.toIso8601String(),
+      'image_url': '', 
+      'created_by': currentUserId,
+      'start_at': startAt.toIso8601String(),
+      'end_at': endAt.toIso8601String(),
+      'category': category,
+    };
 
-      final eventId = response['id'];
-      
-      // Automatically join the creator to the event
-      await toggleEventJoin(eventId, true);
-      
-      return eventId;
-    } catch (e) {
-      debugPrint('Error creating event: $e');
-      return null;
+    Map<String, dynamic>? response;
+    try {
+      response = await _client.from('events').insert(insertData).select().single();
+    } on PostgrestException catch (e) {
+      if (e.code == 'PGRST204' || e.message.contains('Could not find')) {
+        // Geriye dönük uyumluluk: Veritabanında yeni kolonlar yoksa onları silip tekrar dene
+        insertData.remove('start_at');
+        insertData.remove('end_at');
+        insertData.remove('category');
+        response = await _client.from('events').insert(insertData).select().single();
+      } else {
+        rethrow;
+      }
     }
+
+    final eventId = response!['id'];
+    
+    // Automatically join the creator to the event
+    await toggleEventJoin(eventId, true);
+    
+    return eventId;
   }
 
   Future<bool> deleteEvent(String eventId) async {
