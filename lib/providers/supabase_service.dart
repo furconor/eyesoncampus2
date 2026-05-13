@@ -771,6 +771,7 @@ class SupabaseService extends ChangeNotifier {
           messages: messages,
           locationTag: row['location_tag'] ?? '',
           isNewMatch: messages.isEmpty,
+          createdAt: row['created_at'] != null ? DateTime.parse(row['created_at']) : null,
         ));
       }
 
@@ -1350,9 +1351,47 @@ class SupabaseService extends ChangeNotifier {
   }
 
   Stream<List<Map<String, dynamic>>> streamNotifications() {
-    // Note: 'notifications' table is required in Supabase for this feature.
-    // Returning empty stream to prevent app crash if table is missing.
     return Stream.value([]);
+  }
+
+  // --- EVENT MESSAGES ---
+
+  Future<List<Map<String, dynamic>>> getEventMessagesRaw(String eventId) async {
+    try {
+      final response = await _client
+          .from('event_messages')
+          .select('*, profiles:sender_id(id, name, avatar, department, year, bio, university, campus_zone, is_online, last_active, gender_flag, interests)')
+          .eq('event_id', eventId)
+          .order('created_at', ascending: true);
+      return List<Map<String, dynamic>>.from(response as List);
+    } catch (e) {
+      debugPrint('Error fetching event messages: $e');
+      return [];
+    }
+  }
+
+  Future<bool> insertEventMessage(String eventId, String text, {String? imageUrl}) async {
+    if (!isAuthenticated) return false;
+    try {
+      await _client.from('event_messages').insert({
+        'event_id': eventId,
+        'sender_id': currentUserId,
+        'text': text,
+        if (imageUrl != null) 'image_url': imageUrl,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Error inserting event message: $e');
+      return false;
+    }
+  }
+
+  Stream<List<Map<String, dynamic>>> streamEventMessages(String eventId) {
+    return _client
+        .from('event_messages')
+        .stream(primaryKey: ['id'])
+        .eq('event_id', eventId)
+        .order('created_at', ascending: true);
   }
 }
 

@@ -12,7 +12,6 @@ import 'notifications_screen.dart';
 import 'other_profile_screen.dart';
 import 'venue_detail_screen.dart';
 import 'daily_quiz_screen.dart';
-import 'radar_map_screen.dart';
 import '../widgets/match_celebration_overlay.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -76,22 +75,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 SliverToBoxAdapter(child: _buildDailyQuizCard(context)),
 
               SliverToBoxAdapter(
-                child: GestureDetector(
-                  onTap: () {
-                    if (!isCheckedIn) return;
-                    HapticFeedback.mediumImpact();
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RadarMapScreen(
-                          users: users,
-                          venue: _findCurrentVenue(provider, me?.campusZone),
-                        ),
-                      ),
-                    );
-                  },
-                  child: _buildRadarVisualization(users, isCheckedIn ? _findCurrentVenue(provider, me?.campusZone) : null),
-                ),
+                child: _buildRadarVisualization(users, isCheckedIn ? _findCurrentVenue(provider, me?.campusZone) : null),
               ),
 
               SliverToBoxAdapter(
@@ -712,6 +696,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               final distance = 70.0 + (index % 3) * 30.0;
               final offsetX = math.cos(angle) * distance;
               final offsetY = math.sin(angle) * distance;
+              // Kenara yakınsa küçül: 70px→44, 130px→30
+              final avatarSize = (44.0 - (distance - 70.0) / 60.0 * 14.0).clamp(30.0, 44.0);
+              // Kenara yakınsa gölge opaklığı artar: 70px→0.0, 130px→0.45
+              final shadowOpacity = ((distance - 70.0) / 60.0 * 0.45).clamp(0.0, 0.45);
+              final firstName = user.name.split(' ').first;
 
               return Transform.translate(
                 offset: Offset(offsetX, offsetY),
@@ -720,38 +709,86 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     HapticFeedback.lightImpact();
                     Navigator.push(context, MaterialPageRoute(builder: (_) => OtherProfileScreen(user: user)));
                   },
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white54, width: 1.5),
-                      image: user.profileImageUrl != null
-                          ? DecorationImage(image: user.profileImageUrl!.startsWith('http') ? NetworkImage(user.profileImageUrl!) as ImageProvider : FileImage(File(user.profileImageUrl!)), fit: BoxFit.cover)
-                          : null,
-                      color: AppTheme.surface3,
-                    ),
-                    alignment: Alignment.center,
-                    child: user.profileImageUrl == null ? Text(user.avatar, style: const TextStyle(fontSize: 20)) : null,
-                  ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
-                    delay: (index * 200).ms, duration: 1.5.seconds, begin: const Offset(0.9, 0.9), end: const Offset(1.1, 1.1)
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: avatarSize,
+                            height: avatarSize,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white54, width: 1.5),
+                              image: user.profileImageUrl != null
+                                  ? DecorationImage(image: user.profileImageUrl!.startsWith('http') ? NetworkImage(user.profileImageUrl!) as ImageProvider : FileImage(File(user.profileImageUrl!)), fit: BoxFit.cover)
+                                  : null,
+                              color: AppTheme.surface3,
+                            ),
+                            alignment: Alignment.center,
+                            child: user.profileImageUrl == null ? Text(user.avatar, style: TextStyle(fontSize: avatarSize * 0.45)) : null,
+                          ),
+                          // Kenar gölgesi
+                          if (shadowOpacity > 0)
+                            Container(
+                              width: avatarSize,
+                              height: avatarSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black.withOpacity(shadowOpacity),
+                              ),
+                            ),
+                        ],
+                      ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
+                        delay: (index * 200).ms, duration: 1.5.seconds, begin: const Offset(0.9, 0.9), end: const Offset(1.1, 1.1),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        firstName,
+                        style: TextStyle(
+                          fontSize: avatarSize * 0.22,
+                          color: Colors.white.withOpacity(0.75),
+                          fontFamily: 'Space Mono',
+                          shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               );
             }),
 
-          // ── Layer 7: Center location icon (top) ──
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black.withOpacity(0.7),
-              border: Border.all(color: AppTheme.accent, width: 2),
-              boxShadow: [BoxShadow(color: AppTheme.accent.withOpacity(0.6), blurRadius: 16)],
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.radar, color: AppTheme.accent, size: 20),
+          // ── Layer 7: Center location icon + venue name ──
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.7),
+                  border: Border.all(color: AppTheme.accent, width: 2),
+                  boxShadow: [BoxShadow(color: AppTheme.accent.withOpacity(0.6), blurRadius: 16)],
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.radar, color: AppTheme.accent, size: 20),
+              ),
+              if (currentVenue != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  currentVenue.name,
+                  style: const TextStyle(
+                    fontSize: 8,
+                    color: AppTheme.accent,
+                    fontFamily: 'Space Mono',
+                    letterSpacing: 0.5,
+                    shadows: [Shadow(color: Colors.black, blurRadius: 6)],
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ).animate().fadeIn(duration: 800.ms),

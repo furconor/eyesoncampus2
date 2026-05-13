@@ -23,6 +23,8 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription? _notifSubscription;
   Timer? _energyTimer;
   String _energyCountdown = "";
+  bool _isResetting = false;
+  bool _isAutoLeaving = false;
   
   bool get hasSeenOnboarding => _hasSeenOnboarding;
   bool get isLoggedIn => _isLoggedIn;
@@ -60,6 +62,7 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
 
   List<Conversation> _conversations = [];
   Map<String, List<EventMessage>> _eventMessages = {};
+  Map<String, StreamSubscription> _eventMessageSubscriptions = {};
   
   List<AppNotification> _notifications = [];
   List<AppNotification> get notifications => _notifications;
@@ -180,38 +183,40 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _checkDailyReset() async {
-    if (_currentUser == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final now = DateTime.now();
-    final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    final savedDate = prefs.getString('daily_wink_date') ?? '';
+    if (_currentUser == null || _isResetting) return;
+    _isResetting = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final savedDate = prefs.getString('daily_wink_date') ?? '';
 
-    if (savedDate != todayStr) {
-      // Yeni gün: eşleşmeyenleri sentInterests'ten çıkar
-      final yesterdayTargets = prefs.getStringList('daily_wink_targets') ?? [];
-      final toRemove = yesterdayTargets.where((id) => !_matches.contains(id)).toList();
-      for (final id in toRemove) {
-        _sentInterests.remove(id);
+      if (savedDate != todayStr) {
+        final yesterdayTargets = prefs.getStringList('daily_wink_targets') ?? [];
+        final toRemove = yesterdayTargets.where((id) => !_matches.contains(id)).toList();
+        for (final id in toRemove) {
+          _sentInterests.remove(id);
+        }
+        if (toRemove.isNotEmpty) {
+          unawaited(SupabaseService().deleteUnmatchedSwipes(toRemove));
+        }
+        // 10'un altındaysa 10'a tamamla, üstündeyse koru
+        final resetPoints = _currentUser!.points < 10 ? 10 : _currentUser!.points;
+        _currentUser = _currentUser!.copyWith(points: resetPoints);
+        await SupabaseService().updateProfile({'points': resetPoints});
+        _dailyWinkCount = 0;
+        _dailyWinkTargets = [];
+        await prefs.setString('daily_wink_date', todayStr);
+        await prefs.setInt('daily_wink_count', 0);
+        await prefs.setStringList('daily_wink_targets', []);
+        notifyListeners();
+      } else {
+        _dailyWinkCount = prefs.getInt('daily_wink_count') ?? 0;
+        _dailyWinkTargets = List<String>.from(prefs.getStringList('daily_wink_targets') ?? []);
+        _sentInterests.addAll(_dailyWinkTargets);
       }
-      if (toRemove.isNotEmpty) {
-        unawaited(SupabaseService().deleteUnmatchedSwipes(toRemove));
-      }
-      // 10'un üstündeyse koru, altındaysa 10'a tamamla
-      final resetPoints = _currentUser!.points < 10 ? 10 : _currentUser!.points;
-      _currentUser = _currentUser!.copyWith(points: resetPoints);
-      await SupabaseService().updateProfile({'points': resetPoints});
-      // Günlük sayaçları sıfırla
-      _dailyWinkCount = 0;
-      _dailyWinkTargets = [];
-      await prefs.setString('daily_wink_date', todayStr);
-      await prefs.setInt('daily_wink_count', 0);
-      await prefs.setStringList('daily_wink_targets', []);
-      notifyListeners();
-    } else {
-      _dailyWinkCount = prefs.getInt('daily_wink_count') ?? 0;
-      _dailyWinkTargets = List<String>.from(prefs.getStringList('daily_wink_targets') ?? []);
-      // Bugünkü wink'leri _sentInterests'e de ekle (2 saatlik DB filtresi dışında kalanlar için)
-      _sentInterests.addAll(_dailyWinkTargets);
+    } finally {
+      _isResetting = false;
     }
   }
 
@@ -275,7 +280,7 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
   bool get isCheckinExpired {
     if (_currentUser == null || _currentUser!.lastCheckinAt == null) return true;
     final diff = DateTime.now().difference(_currentUser!.lastCheckinAt!);
-    return diff.inHours >= 2;
+    return diff.inHours >= 4;
   }
 
   AppData() {
@@ -301,6 +306,15 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
       if ((prefs.getString('daily_wink_date') ?? '') != todayStr) _checkDailyReset();
     });
 
+    // 4 saat hareketsiz kalırsa mekandan otomatik çıkar
+    if (!_isAutoLeaving &&
+        _currentUser!.lastCheckinAt != null &&
+        _currentUser!.campusZone != 'Bilinmiyor' &&
+        now.difference(_currentUser!.lastCheckinAt!).inHours >= 4) {
+      _isAutoLeaving = true;
+      leaveVenue().then((_) => _isAutoLeaving = false);
+    }
+
     if (_currentUser!.points >= 10) {
       _energyCountdown = "TAM DOLU";
     } else {
@@ -320,6 +334,9 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
     _profileSubscription?.cancel();
     _notifSubscription?.cancel();
     _energyTimer?.cancel();
+    for (final sub in _eventMessageSubscriptions.values) {
+      sub.cancel();
+    }
     super.dispose();
   }
 
@@ -440,7 +457,12 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
     _notifications = [];
     _matches.clear();
     _sentInterests.clear();
-    
+    _eventMessages.clear();
+    for (final sub in _eventMessageSubscriptions.values) {
+      sub.cancel();
+    }
+    _eventMessageSubscriptions.clear();
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isLoggedIn', false);
     resetQuiz();
@@ -522,8 +544,6 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
       final success = await updateProfile(_currentUser!.copyWith(diaryPhotos: newList));
       
       if (success) {
-        // Fotoğraf yükleme ödülü
-        await addPoints(1, 'Fotoğraf Yükleme');
         return url;
       }
     }
@@ -898,7 +918,6 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
       
       if (join) {
         final updatedEvent = _events.firstWhere((e) => e.id == eventId);
-        await addPoints(1, 'Etkinliğe Katılma');
         HapticFeedback.mediumImpact();
 
         if (updatedEvent.attendeesCount == 3 && event.attendeesCount < 3 && event.createdBy != null) {
@@ -930,42 +949,93 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
 
   // --- EVENT MESSAGES ---
   List<EventMessage> getEventMessages(String eventId) {
-    if (!_eventMessages.containsKey(eventId)) {
-      // Mock data for the feed
-      _eventMessages[eventId] = [];
-      if (_allUsers.isNotEmpty) {
-        final mockSender1 = _allUsers[0 % _allUsers.length];
-        final mockSender2 = _allUsers[1 % _allUsers.length];
-        
-        _eventMessages[eventId]!.add(EventMessage(
-          id: 'mock1_$eventId',
-          eventId: eventId,
-          sender: mockSender1,
-          text: 'Etkinliğe geldik bile! Ortam çok iyi.',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 45)),
-          imageUrl: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=500&auto=format&fit=crop',
-          likesCount: 12,
-          repliesCount: 3,
-        ));
-        
-        _eventMessages[eventId]!.add(EventMessage(
-          id: 'mock2_$eventId',
-          eventId: eventId,
-          sender: mockSender2,
-          text: 'Birazdan başlıyoruz, sahnenin hemen önündeyiz!',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 10)),
-          likesCount: 5,
-        ));
+    return _eventMessages[eventId] ?? [];
+  }
+
+  Future<void> loadEventMessages(String eventId) async {
+    final supabase = SupabaseService();
+    final rawMessages = await supabase.getEventMessagesRaw(eventId);
+
+    _eventMessages[eventId] = rawMessages.map((row) {
+      final profile = row['profiles'] as Map<String, dynamic>?;
+      User sender;
+      if (profile != null) {
+        sender = User(
+          id: profile['id'],
+          name: profile['name'] ?? 'İsimsiz',
+          university: profile['university'] ?? '',
+          department: profile['department'] ?? '',
+          year: profile['year'] ?? '',
+          bio: profile['bio'] ?? '',
+          interests: List<String>.from(profile['interests'] ?? []),
+          avatar: (profile['avatar'] != null && (profile['avatar'] as String).startsWith('http')) ? '🧑' : (profile['avatar'] ?? '🧑'),
+          profileImageUrl: (profile['avatar'] != null && (profile['avatar'] as String).startsWith('http')) ? profile['avatar'] : null,
+          campusZone: profile['campus_zone'] ?? 'Bilinmiyor',
+          isOnline: profile['is_online'] ?? false,
+          lastActive: profile['last_active'] != null ? DateTime.parse(profile['last_active']) : DateTime.now(),
+          genderFlag: profile['gender_flag'] ?? 'm',
+        );
+      } else {
+        final senderId = row['sender_id'] as String? ?? '';
+        sender = _allUsers.firstWhere(
+          (u) => u.id == senderId,
+          orElse: () => senderId == _currentUser?.id
+              ? _currentUser!
+              : User(id: senderId, name: 'İsimsiz', university: '', department: '', year: '', bio: '', interests: [], avatar: '🧑', campusZone: '', isOnline: false, lastActive: DateTime.now()),
+        );
       }
-    }
-    return _eventMessages[eventId]!;
+      return EventMessage(
+        id: row['id'],
+        eventId: row['event_id'],
+        sender: sender,
+        text: row['text'] ?? '',
+        timestamp: DateTime.parse(row['created_at']),
+        imageUrl: row['image_url'],
+        videoUrl: row['video_url'],
+        likesCount: row['likes_count'] ?? 0,
+        repliesCount: row['replies_count'] ?? 0,
+      );
+    }).toList();
+
+    notifyListeners();
+    _startEventMessageListener(eventId);
+  }
+
+  void _startEventMessageListener(String eventId) {
+    if (_eventMessageSubscriptions.containsKey(eventId)) return;
+    final supabase = SupabaseService();
+    _eventMessageSubscriptions[eventId] = supabase.streamEventMessages(eventId).listen((rows) {
+      _eventMessages[eventId] = rows.map((row) {
+        final senderId = row['sender_id'] as String? ?? '';
+        final sender = _allUsers.firstWhere(
+          (u) => u.id == senderId,
+          orElse: () => senderId == _currentUser?.id
+              ? _currentUser!
+              : User(id: senderId, name: 'İsimsiz', university: '', department: '', year: '', bio: '', interests: [], avatar: '🧑', campusZone: '', isOnline: false, lastActive: DateTime.now()),
+        );
+        return EventMessage(
+          id: row['id'],
+          eventId: row['event_id'],
+          sender: sender,
+          text: row['text'] ?? '',
+          timestamp: DateTime.parse(row['created_at']),
+          imageUrl: row['image_url'],
+          videoUrl: row['video_url'],
+          likesCount: row['likes_count'] ?? 0,
+          repliesCount: row['replies_count'] ?? 0,
+        );
+      }).toList();
+      notifyListeners();
+    });
   }
 
   void sendEventMessage(String eventId, String text, {String? imageUrl, String? videoUrl}) {
-    if (_currentUser == null) return;
-    
-    final msg = EventMessage(
-      id: 'em_${DateTime.now().millisecondsSinceEpoch}',
+    if (_currentUser == null || (text.trim().isEmpty && imageUrl == null)) return;
+
+    // Optimistic: mesajı hemen göster
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final tempMsg = EventMessage(
+      id: tempId,
       eventId: eventId,
       sender: _currentUser!,
       text: text,
@@ -973,12 +1043,16 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
       imageUrl: imageUrl,
       videoUrl: videoUrl,
     );
-    
-    if (!_eventMessages.containsKey(eventId)) {
-      _eventMessages[eventId] = [];
-    }
-    _eventMessages[eventId]!.add(msg);
+    _eventMessages.putIfAbsent(eventId, () => []).add(tempMsg);
     notifyListeners();
+
+    // Supabase'e yaz; realtime stream gelince temp mesaj gerçek ile değişir
+    SupabaseService().insertEventMessage(eventId, text, imageUrl: imageUrl).then((success) {
+      if (!success) {
+        _eventMessages[eventId]?.removeWhere((m) => m.id == tempId);
+        notifyListeners();
+      }
+    });
   }
   
   void toggleLikeEventMessage(String eventId, String messageId) {
@@ -1283,7 +1357,7 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
     // 1. Matches and Messages as notifications
     for (var conv in _conversations) {
       final nidMatch = 'n_match_${conv.id}';
-      final tsMatch = conv.messages.isNotEmpty ? conv.messages.first.timestamp : (existingNotifs[nidMatch]?.timestamp ?? DateTime.now());
+      final tsMatch = conv.createdAt ?? (conv.messages.isNotEmpty ? conv.messages.first.timestamp : (existingNotifs[nidMatch]?.timestamp ?? DateTime.now()));
 
       _notifications.add(AppNotification(
         id: nidMatch,
@@ -1327,9 +1401,7 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
       if (!matchUserIds.contains(senderId)) {
         final nid = 'n_wink_$senderId';
         
-        // If this is a new wink we haven't awarded points for yet
         if (!awardedWinks.contains(senderId)) {
-           await addPoints(1, 'Göz kırpıldı!');
            awardedWinks.add(senderId);
            pointsUpdated = true;
         }

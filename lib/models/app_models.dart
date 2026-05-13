@@ -52,6 +52,7 @@ class Conversation {
   final int unreadCount;
   final bool isNewMatch;
   final String locationTag;
+  final DateTime? createdAt;
 
   Conversation({
     required this.id,
@@ -60,6 +61,7 @@ class Conversation {
     this.unreadCount = 0,
     this.isNewMatch = false,
     this.locationTag = '',
+    this.createdAt,
   });
 
   AppMessage? get lastMessage => messages.isNotEmpty ? messages.last : null;

@@ -236,136 +236,150 @@ class _AuthScreenState extends State<AuthScreen> {
   void _showLoginDialog(BuildContext context) {
     final emailCtrl = TextEditingController();
     final passCtrl = TextEditingController();
-    
+    bool obscure = true;
+    bool isLoading = false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.bg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: AppTheme.border.withOpacity(0.5))),
-        title: const Text(
-          'GİRİŞ YAP', 
-          style: TextStyle(color: AppTheme.accent, fontFamily: 'Space Mono', fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 2),
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            _buildPremiumTextField(controller: emailCtrl, hint: 'E-posta adresi', icon: Icons.email_outlined),
-            const SizedBox(height: 16),
-            _buildPremiumTextField(controller: passCtrl, hint: 'Şifre', icon: Icons.lock_outline, obscureText: true),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _showForgotPasswordFlow(context);
-                },
-                child: const Text('Şifremi Unuttum', style: TextStyle(color: AppTheme.muted, fontSize: 11, fontFamily: 'Space Mono')),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          Row(
+      barrierDismissible: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppTheme.bg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: AppTheme.border.withOpacity(0.5)),
+          ),
+          title: const Text(
+            'GİRİŞ YAP',
+            style: TextStyle(color: AppTheme.accent, fontFamily: 'Space Mono', fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 2),
+            textAlign: TextAlign.center,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppTheme.border.withOpacity(0.3)),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              const SizedBox(height: 16),
+              _buildPremiumTextField(controller: emailCtrl, hint: 'E-posta adresi', icon: Icons.email_outlined),
+              const SizedBox(height: 16),
+              StatefulBuilder(
+                builder: (_, setObscure) => _buildPremiumTextField(
+                  controller: passCtrl,
+                  hint: 'Şifre',
+                  icon: Icons.lock_outline,
+                  obscureText: obscure,
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: AppTheme.muted, size: 20),
+                    onPressed: () { setObscure(() => obscure = !obscure); },
                   ),
-                  child: const Text('İPTAL', style: TextStyle(color: AppTheme.muted, fontSize: 12, fontFamily: 'Space Mono')),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () async {
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
                     Navigator.pop(ctx);
-                    setState(() => _isLoading = true);
-                    final sb = SupabaseService();
-                    String? errorMessage;
-                    bool success = false;
-                    
-                    // Sign In attempt
-                    try {
-                      success = await sb.signInWithEmail(emailCtrl.text.trim(), passCtrl.text);
-                    } catch (e) {
-                      errorMessage = e.toString();
-                    }
-                    
-                    // APPLE REVIEWER KORUMASI: Sadece bu hesap girdiginde verileri yukle
-                    if (!success && emailCtrl.text.trim().toLowerCase() == 'apple_test@eyesoncampus.com' && passCtrl.text == 'AppleTest2026*') {
-                      await sb.seedDummyData();
-                      success = await sb.signInWithEmail(emailCtrl.text.trim(), passCtrl.text);
-                    }
-                    
-                    if (success) {
-                      final user = await sb.getCurrentUserProfile();
-                      if (user != null) {
-                        final provider = Provider.of<AppData>(context, listen: false);
-                        await provider.completeOnboarding();
-                        await provider.login(user);
-                        if (mounted) {
-                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainLayout()));
-                        }
-                      } else {
-                        // OTOMATİK PROFİL KURTARMA: Auth var ama Profil yoksa kayıt adım 3'e (profil oluşturma) at
-                        if (mounted) {
-                          // Üniversiteyi e-postadan otomatik tanıyalım
-                          final email = emailCtrl.text.trim().toLowerCase();
-                          final domain = email.split('@').last;
-                          final provider = Provider.of<AppData>(context, listen: false);
-                          
-                          final match = provider.universities.where((u) {
-                            if (u.domain == null) return false;
-                            final domains = u.domain!.toLowerCase().split(',').map((d) => d.trim()).toList();
-                            return domains.contains(domain);
-                          }).toList();
-
-                          setState(() {
-                            if (match.isNotEmpty) {
-                              _selectedUniversityId = match.first.id;
-                            }
-                            _step = 2;
-                            _isLoading = false;
-                          });
-                          // Use a nice informational snackbar instead of default
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: const Row(
-                              children: [
-                                Icon(Icons.info_outline, color: Colors.white),
-                                SizedBox(width: 12),
-                                Text('Hesabınız bulundu! Lütfen profilinizi tamamlayın.', style: TextStyle(color: Colors.white)),
-                              ],
-                            ),
-                            backgroundColor: AppTheme.accent.withOpacity(0.9),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ));
-                        }
-                      }
-                    } else {
-                      if (mounted) {
-                        _showError(errorMessage ?? 'Bilgileri kontrol edin.');
-                      }
-                    }
-                    if (mounted) setState(() => _isLoading = false);
+                    _showForgotPasswordFlow(context);
                   },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('GİRİŞ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Space Mono')),
+                  child: const Text('Şifremi Unuttum', style: TextStyle(color: AppTheme.muted, fontSize: 11, fontFamily: 'Space Mono')),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-        ],
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: isLoading ? null : () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: AppTheme.border.withOpacity(0.3)),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('İPTAL', style: TextStyle(color: AppTheme.muted, fontSize: 12, fontFamily: 'Space Mono')),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: isLoading ? null : () async {
+                      setDialogState(() => isLoading = true);
+                      final sb = SupabaseService();
+                      String? errorMessage;
+                      bool success = false;
+
+                      try {
+                        success = await sb.signInWithEmail(emailCtrl.text.trim(), passCtrl.text);
+                      } catch (e) {
+                        errorMessage = e.toString();
+                      }
+
+                      // APPLE REVIEWER KORUMASI
+                      if (!success && emailCtrl.text.trim().toLowerCase() == 'apple_test@eyesoncampus.com' && passCtrl.text == 'AppleTest2026*') {
+                        await sb.seedDummyData();
+                        success = await sb.signInWithEmail(emailCtrl.text.trim(), passCtrl.text);
+                      }
+
+                      if (!ctx.mounted) return;
+
+                      if (success) {
+                        Navigator.pop(ctx); // sadece başarıda kapat
+                        final user = await sb.getCurrentUserProfile();
+                        if (user != null) {
+                          final provider = Provider.of<AppData>(context, listen: false);
+                          await provider.completeOnboarding();
+                          await provider.login(user);
+                          if (mounted) {
+                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainLayout()));
+                          }
+                        } else {
+                          // Profil eksik — profil oluşturma adımına yönlendir
+                          if (mounted) {
+                            final email = emailCtrl.text.trim().toLowerCase();
+                            final domain = email.split('@').last;
+                            final provider = Provider.of<AppData>(context, listen: false);
+                            final match = provider.universities.where((u) {
+                              if (u.domain == null) return false;
+                              final domains = u.domain!.toLowerCase().split(',').map((d) => d.trim()).toList();
+                              return domains.contains(domain);
+                            }).toList();
+                            setState(() {
+                              if (match.isNotEmpty) _selectedUniversityId = match.first.id;
+                              _step = 2;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: const Row(
+                                children: [
+                                  Icon(Icons.info_outline, color: Colors.white),
+                                  SizedBox(width: 12),
+                                  Expanded(child: Text('Hesabınız bulundu! Lütfen profilinizi tamamlayın.', style: TextStyle(color: Colors.white))),
+                                ],
+                              ),
+                              backgroundColor: AppTheme.accent.withOpacity(0.9),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ));
+                          }
+                        }
+                      } else {
+                        // Hata — dialog açık kalır, kullanıcı tekrar deneyebilir
+                        setDialogState(() => isLoading = false);
+                        _showError(errorMessage ?? 'Bilgileri kontrol edin.');
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: isLoading
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                        : const Text('GİRİŞ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Space Mono')),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }

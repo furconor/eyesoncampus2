@@ -389,12 +389,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _formatTime(DateTime time) {
     final now = DateTime.now();
     final diff = now.difference(time);
-    if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m önce';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours}h önce';
-    } else {
-      return '${time.day}.${time.month}.${time.year}';
-    }
+    if (diff.inSeconds < 60) return 'az önce';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} dk önce';
+    if (diff.inHours < 24) return '${diff.inHours} saat önce';
+    if (diff.inDays == 1) return 'dün';
+    if (diff.inDays < 7) return '${diff.inDays} gün önce';
+    if (diff.inDays < 14) return 'geçen hafta';
+    return '${time.day}.${time.month}.${time.year}';
   }
 }

@@ -21,7 +21,15 @@ class EventChatScreen extends StatefulWidget {
 class _EventChatScreenState extends State<EventChatScreen> {
   final TextEditingController _msgController = TextEditingController();
   final FocusNode _msgFocusNode = FocusNode();
-  String? _pendingImageUrl; // Mock pending image
+  String? _pendingImageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppData>().loadEventMessages(widget.event.id);
+    });
+  }
 
   @override
   void dispose() {
@@ -163,18 +171,24 @@ class _EventChatScreenState extends State<EventChatScreen> {
                 _buildHeader(context, provider),
                 Expanded(
                   child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                    ),
-                    child: ListView.builder(
-                      reverse: true,
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      itemCount: reversedMessages.length,
-                      itemBuilder: (context, index) {
-                        final msg = reversedMessages[index];
-                        return _buildFeedPost(msg, me.id, index, provider);
-                      },
-                    ),
+                    color: Colors.black,
+                    child: reversedMessages.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Henüz mesaj yok.\nİlk mesajı sen at!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.white24, fontSize: 14, height: 1.6),
+                            ),
+                          )
+                        : ListView.builder(
+                            reverse: true,
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            itemCount: reversedMessages.length,
+                            itemBuilder: (context, index) {
+                              final msg = reversedMessages[index];
+                              return _buildFeedPost(msg, me.id, index, provider);
+                            },
+                          ),
                   ),
                 ),
                 _buildInputBar(),
@@ -273,7 +287,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
                 );
                 if (confirm == true && context.mounted) {
                   await provider.joinEvent(widget.event.id, false);
-                  Navigator.pop(context);
+                  if (context.mounted) Navigator.pop(context);
                 }
               },
               child: Container(

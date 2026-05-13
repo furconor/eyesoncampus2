@@ -284,7 +284,7 @@ class _EventsScreenState extends State<EventsScreen> {
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: AppTheme.accent),
                             ),
-                            child: const Text('KATILIDIN', style: TextStyle(fontFamily: 'Space Mono', fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.accent, letterSpacing: 1)),
+                            child: const Text('KATILDIN', style: TextStyle(fontFamily: 'Space Mono', fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.accent, letterSpacing: 1)),
                           ),
                       ],
                     ),
