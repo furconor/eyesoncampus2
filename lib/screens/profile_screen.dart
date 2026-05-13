@@ -257,7 +257,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'PWR SEVİYESİ',
+                      'ENERJİ',
                       style: TextStyle(fontFamily: 'Space Mono', fontSize: 10, letterSpacing: 2, color: Colors.white54, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
@@ -340,10 +340,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _buildStatBox('GÖZ ATAN', '${provider.lookCount}', Icons.remove_red_eye_rounded, count: 4),
-        _buildStatBox('EŞLEŞME', '${provider.matchCount}', Icons.auto_awesome_rounded, count: 4),
-        _buildStatBox('SOHBET', '${provider.chatCount}', Icons.chat_bubble_rounded, count: 4),
-        _buildStatBox('AYLIK GÖZ', '${provider.monthlyViews}', Icons.insights_rounded, count: 4),
+        _buildStatBox('GÖZ KIRPMA', '${provider.lookCount}', Icons.remove_red_eye_rounded, count: 3),
+        _buildStatBox('EŞLEŞME', '${provider.matchCount}', Icons.auto_awesome_rounded, count: 3),
+        _buildStatBox('GÖRÜNTÜLENME', '${provider.monthlyViews}', Icons.insights_rounded, count: 3),
       ],
     ).animate().fadeIn(delay: 500.ms, duration: 600.ms);
   }
@@ -464,16 +463,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             itemCount: photos.length,
             itemBuilder: (context, index) {
-              return Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  image: DecorationImage(
-                    image: NetworkImage(photos[index]),
-                    fit: BoxFit.cover,
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => Scaffold(
+                        backgroundColor: Colors.black,
+                        extendBodyBehindAppBar: true,
+                        appBar: AppBar(
+                          backgroundColor: Colors.transparent,
+                          elevation: 0,
+                          iconTheme: const IconThemeData(color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 8)]),
+                        ),
+                        body: InteractiveViewer(
+                          panEnabled: true,
+                          minScale: 1.0,
+                          maxScale: 4.0,
+                          child: Center(
+                            child: Hero(
+                              tag: 'photo_${photos[index]}',
+                              child: Image.network(photos[index], fit: BoxFit.contain),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                child: Hero(
+                  tag: 'photo_${photos[index]}',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      image: DecorationImage(
+                        image: NetworkImage(photos[index]),
+                        fit: BoxFit.cover,
+                      ),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
+                      ],
+                    ),
                   ),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
-                  ],
                 ),
               ).animate().fadeIn(delay: (index * 100).ms);
             },

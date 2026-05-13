@@ -33,23 +33,45 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     }
   }
 
-  Future<void> _unblock(String userId) async {
-    final sb = SupabaseService();
-    final success = await sb.unblockUser(userId);
-    if (success && mounted) {
-      _fetchBlockedUsers();
-      final provider = Provider.of<AppData>(context, listen: false);
+  Future<void> _unblock(User user) async {
+    // Optimistic UI: önce listeden çıkar
+    setState(() {
+      _blockedUsers.removeWhere((u) => u.id == user.id);
+    });
+
+    final provider = Provider.of<AppData>(context, listen: false);
+    final success = await provider.unblockUser(user.id);
+
+    if (!mounted) return;
+
+    if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: AppTheme.surface,
           content: Text(
-            provider.currentLanguage == 'tr' ? 'Engelleme kaldırıldı.' : 'User unblocked.',
+            '${user.name} engeli kaldırıldı.',
             style: const TextStyle(color: AppTheme.text, fontFamily: 'Space Mono', fontSize: 12),
+          ),
+        ),
+      );
+    } else {
+      // Geri al
+      setState(() {
+        _blockedUsers.add(user);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.red,
+          content: Text(
+            'Engel kaldırılamadı. Tekrar deneyin.',
+            style: TextStyle(color: Colors.white, fontFamily: 'Space Mono', fontSize: 12),
           ),
         ),
       );
     }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -141,7 +163,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                             ),
                           ),
                           TextButton(
-                            onPressed: () => _unblock(user.id),
+                            onPressed: () => _unblock(user),
                             style: TextButton.styleFrom(
                               backgroundColor: AppTheme.red.withOpacity(0.1),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

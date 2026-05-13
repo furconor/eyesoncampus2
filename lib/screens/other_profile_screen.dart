@@ -280,16 +280,49 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
             ),
             itemCount: photos.length,
             itemBuilder: (context, index) {
-              return Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  image: DecorationImage(
-                    image: NetworkImage(photos[index]),
-                    fit: BoxFit.cover,
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => Scaffold(
+                        backgroundColor: Colors.black,
+                        extendBodyBehindAppBar: true,
+                        appBar: AppBar(
+                          backgroundColor: Colors.transparent,
+                          elevation: 0,
+                          iconTheme: const IconThemeData(color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 8)]),
+                        ),
+                        body: InteractiveViewer(
+                          panEnabled: true,
+                          minScale: 1.0,
+                          maxScale: 4.0,
+                          child: Center(
+                            child: Hero(
+                              tag: 'photo_${photos[index]}',
+                              child: Image.network(photos[index], fit: BoxFit.contain),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                child: Hero(
+                  tag: 'photo_${photos[index]}',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      image: DecorationImage(
+                        image: NetworkImage(photos[index]),
+                        fit: BoxFit.cover,
+                      ),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
+                      ],
+                    ),
                   ),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
-                  ],
                 ),
               ).animate().fadeIn(delay: (index * 100).ms);
             },

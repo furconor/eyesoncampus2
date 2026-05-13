@@ -21,8 +21,12 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _radarController;
+  bool _searchVisible = false;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -31,11 +35,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       vsync: this,
       duration: const Duration(seconds: 4),
     )..repeat();
+    _searchCtrl.addListener(() {
+      setState(() => _searchQuery = _searchCtrl.text.toLowerCase());
+    });
   }
 
   @override
   void dispose() {
     _radarController.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -46,7 +54,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     final me = provider.currentUser;
     final isExpired = provider.isCheckinExpired;
-    final isCheckedIn = !isExpired && me?.campusZone != null && me?.campusZone != 'Bilinmiyor';
+    final isCheckedIn =
+        !isExpired && me?.campusZone != null && me?.campusZone != 'Bilinmiyor';
 
     List<User> users = [];
     List<Venue> topVenues = [];
@@ -54,30 +63,31 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     if (isCheckedIn) {
       users = provider.getUsersAtVenue(me!.campusZone!);
     } else {
-      topVenues = List<Venue>.from(provider.venues)..sort((a, b) => b.peopleCount.compareTo(a.peopleCount));
+      topVenues = List<Venue>.from(provider.venues)
+        ..sort((a, b) => b.peopleCount.compareTo(a.peopleCount));
       topVenues = topVenues.take(10).toList();
     }
 
     return Scaffold(
-      backgroundColor: Colors.black, // Deep dark background
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
           CustomScrollView(
-            physics: const BouncingScrollPhysics(),
+            physics: const NeverScrollableScrollPhysics(),
             slivers: [
               _buildAppBar(context, provider),
-              
               SliverToBoxAdapter(
                 child: _buildLocationBar(context, provider, isCheckedIn),
               ),
-
               if (provider.currentUser?.quizCompleted == false)
                 SliverToBoxAdapter(child: _buildDailyQuizCard(context)),
-
               SliverToBoxAdapter(
-                child: _buildRadarVisualization(users, isCheckedIn ? _findCurrentVenue(provider, me?.campusZone) : null),
+                child: _buildRadarVisualization(
+                    users,
+                    isCheckedIn
+                        ? _findCurrentVenue(provider, me?.campusZone)
+                        : null),
               ),
-
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
@@ -86,58 +96,234 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     children: [
                       Text(
                         isCheckedIn ? 'RADARINDAKİLER' : 'EN POPÜLER MEKANLAR',
-                        style: const TextStyle(fontFamily: 'Space Mono', fontSize: 10, letterSpacing: 2, fontWeight: FontWeight.bold, color: AppTheme.accent),
+                        style: const TextStyle(
+                            fontFamily: 'Space Mono',
+                            fontSize: 10,
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.accent),
                       ),
                       Text(
                         isCheckedIn ? '${users.length} KİŞİ' : '',
-                        style: const TextStyle(fontFamily: 'Space Mono', fontSize: 10, color: Colors.white54),
+                        style: const TextStyle(
+                            fontFamily: 'Space Mono',
+                            fontSize: 10,
+                            color: Colors.white54),
                       ),
                     ],
                   ),
                 ),
               ),
-
               if (isCheckedIn && users.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _buildEmptyState(),
-                )
-              else if (isCheckedIn)
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 152,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: users.length,
-                      itemBuilder: (context, index) => _RadarUserCard(
-                        user: users[index],
-                        index: index,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => OtherProfileScreen(user: users[index]),
+                  child: Column(
+                    children: [
+                      // ── Radar (Expanded: kalan tüm alanı doldurur) ──
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => RadarMapScreen(
+                                  users: users,
+                                  venue: _findCurrentVenue(
+                                      provider, me?.campusZone),
+                                ),
+                              ),
+                            );
+                          },
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: _buildRadarVisualization(users,
+                                _findCurrentVenue(provider, me?.campusZone)),
                           ),
                         ),
                       ),
-                    ),
+
+                      // ── BURADA OLANLAR ve Arama çubuğu (İnline) ──
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'BURADA OLANLAR',
+                              style: TextStyle(
+                                  fontFamily: 'Space Mono',
+                                  fontSize: 10,
+                                  letterSpacing: 2,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.accent),
+                            ),
+                            if (_searchVisible)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  child: TextField(
+                                    controller: _searchCtrl,
+                                    autofocus: true,
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 12),
+                                    decoration: const InputDecoration(
+                                      hintText: 'ara...',
+                                      hintStyle: TextStyle(
+                                          color: Colors.white38, fontSize: 12),
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                    ),
+                                  )
+                                      .animate()
+                                      .fadeIn(duration: 200.ms)
+                                      .slideX(begin: 0.1, end: 0),
+                                ),
+                              )
+                            else
+                              const Spacer(),
+                            Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() {
+                                      _searchVisible = !_searchVisible;
+                                      if (!_searchVisible) _searchCtrl.clear();
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: _searchVisible
+                                          ? AppTheme.accent.withOpacity(0.15)
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color: _searchVisible
+                                              ? AppTheme.accent.withOpacity(0.5)
+                                              : Colors.transparent),
+                                    ),
+                                    child: Icon(
+                                      _searchVisible
+                                          ? Icons.close_rounded
+                                          : Icons.search_rounded,
+                                      size: 16,
+                                      color: _searchVisible
+                                          ? AppTheme.accent
+                                          : Colors.white54,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${users.length} KİŞİ',
+                                  style: const TextStyle(
+                                      fontFamily: 'Space Mono',
+                                      fontSize: 10,
+                                      color: Colors.white54),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // ── Profil kartları ──
+                      if (users.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: Text(
+                              'RADARINDA KİMSE YOK',
+                              style: TextStyle(
+                                  fontFamily: 'Space Mono',
+                                  fontSize: 10,
+                                  color: Colors.white38,
+                                  letterSpacing: 1.5),
+                            ),
+                          ),
+                        )
+                      else
+                        Builder(builder: (context) {
+                          var filtered = _searchQuery.isEmpty
+                              ? users
+                              : users
+                                  .where((u) => u.name
+                                      .toLowerCase()
+                                      .contains(_searchQuery))
+                                  .toList();
+
+                          if (filtered.isEmpty) {
+                            filtered = users;
+                          }
+
+                          return SizedBox(
+                            height: 136,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              physics: const BouncingScrollPhysics(),
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) => _RadarUserCard(
+                                user: filtered[index],
+                                index: index,
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => OtherProfileScreen(
+                                          user: filtered[index])),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+
+                      const SizedBox(height: 90), // nav bar boşluğu
+                    ],
                   ),
                 )
-              else
+              else ...[
+                // ── Checked-out: Radar (statik) ──
+                SliverToBoxAdapter(
+                  child: _buildRadarVisualization([], null),
+                ),
+
+                // ── EN POPÜLER MEKANLAR başlığı ──
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: const [
+                        Text('EN POPÜLER MEKANLAR',
+                            style: TextStyle(
+                                fontFamily: 'Space Mono',
+                                fontSize: 10,
+                                letterSpacing: 2,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.accent)),
+                      ],
+                    ),
+                  ),
+                ),
+
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        return _buildTopVenueItem(context, topVenues[index], index);
-                      },
+                      (context, index) =>
+                          _buildTopVenueItem(context, topVenues[index], index),
                       childCount: topVenues.length,
                     ),
                   ),
                 ),
-                
-              const SliverToBoxAdapter(child: SizedBox(height: 120)), // Bottom nav padding
+
+                const SliverToBoxAdapter(child: SizedBox(height: 80)),
+              ],
             ],
           ),
 
@@ -150,7 +336,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ],
       ),
     );
-  }
+  } // end build()
 
   Widget _buildAppBar(BuildContext context, AppData provider) {
     final unreadCount = provider.notifications.where((n) => n.isNew).length;
@@ -163,18 +349,31 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       centerTitle: true,
       title: const Text(
         'EyeRadar',
-        style: TextStyle(fontFamily: 'Cormorant Garamond', fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
+        style: TextStyle(
+            fontFamily: 'Cormorant Garamond',
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: 1),
       ),
       leading: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(color: AppTheme.surface2, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppTheme.accent.withOpacity(0.3))),
+          decoration: BoxDecoration(
+              color: AppTheme.surface2,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.accent.withOpacity(0.3))),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.bolt_rounded, size: 14, color: AppTheme.accent),
               const SizedBox(width: 2),
-              Text('${me?.points ?? 0}', style: const TextStyle(fontFamily: 'Space Mono', fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.accent)),
+              Text('${me?.points ?? 0}',
+                  style: const TextStyle(
+                      fontFamily: 'Space Mono',
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.accent)),
             ],
           ),
         ),
@@ -184,17 +383,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         GestureDetector(
           onTap: () {
             HapticFeedback.lightImpact();
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const NotificationsScreen()));
           },
           child: Container(
             margin: const EdgeInsets.only(right: 16),
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: AppTheme.surface2, shape: BoxShape.circle, border: Border.all(color: Colors.white10)),
+            decoration: BoxDecoration(
+                color: AppTheme.surface2,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white10)),
             child: Stack(
               alignment: Alignment.center,
               children: [
-                const Icon(Icons.notifications_none_rounded, size: 20, color: Colors.white),
+                const Icon(Icons.notifications_none_rounded,
+                    size: 20, color: Colors.white),
                 if (unreadCount > 0)
                   Positioned(
                     top: 8,
@@ -202,7 +406,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     child: Container(
                       width: 8,
                       height: 8,
-                      decoration: const BoxDecoration(color: AppTheme.red, shape: BoxShape.circle),
+                      decoration: const BoxDecoration(
+                          color: AppTheme.red, shape: BoxShape.circle),
                     ),
                   ),
               ],
@@ -213,7 +418,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildLocationBar(BuildContext context, AppData provider, bool isCheckedIn) {
+  Widget _buildLocationBar(
+      BuildContext context, AppData provider, bool isCheckedIn) {
     final me = provider.currentUser;
 
     return Padding(
@@ -224,15 +430,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             child: GestureDetector(
               onTap: () => _showVenueSelector(context, provider),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: isCheckedIn ? AppTheme.accent.withOpacity(0.1) : AppTheme.surface2,
+                  color: isCheckedIn
+                      ? AppTheme.accent.withOpacity(0.1)
+                      : AppTheme.surface2,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: isCheckedIn ? AppTheme.accent.withOpacity(0.5) : Colors.white10),
+                  border: Border.all(
+                      color: isCheckedIn
+                          ? AppTheme.accent.withOpacity(0.5)
+                          : Colors.white10),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.location_on_rounded, size: 16, color: AppTheme.accent),
+                    const Icon(Icons.location_on_rounded,
+                        size: 16, color: AppTheme.accent),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -241,21 +454,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           if (isCheckedIn)
                             const Text(
                               'Şu anda buradasın:',
-                              style: TextStyle(fontSize: 10, color: Colors.white54, fontFamily: 'Space Mono'),
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.white54,
+                                  fontFamily: 'Space Mono'),
                             ),
                           Text(
-                            isCheckedIn ? me?.campusZone ?? 'Bilinmiyor' : 'Neredeyim?',
+                            isCheckedIn
+                                ? me?.campusZone ?? 'Bilinmiyor'
+                                : 'Neredeyim?',
                             style: TextStyle(
                               fontSize: isCheckedIn ? 16 : 14,
-                              fontWeight: isCheckedIn ? FontWeight.bold : FontWeight.normal,
-                              color: isCheckedIn ? AppTheme.accent : Colors.white54,
+                              fontWeight: isCheckedIn
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isCheckedIn
+                                  ? AppTheme.accent
+                                  : Colors.white54,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                    Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: isCheckedIn ? AppTheme.accent : Colors.white38),
+                    Icon(Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: isCheckedIn ? AppTheme.accent : Colors.white38),
                   ],
                 ),
               ),
@@ -270,20 +494,31 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   context: context,
                   builder: (_) => AlertDialog(
                     backgroundColor: AppTheme.surface,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    title: const Text('Odadan Ayrıl', style: TextStyle(color: Colors.white, fontFamily: 'Cormorant Garamond', fontSize: 22, fontWeight: FontWeight.bold)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    title: const Text('Odadan Ayrıl',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Cormorant Garamond',
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold)),
                     content: Text(
                       '${me?.campusZone} mekanından ayrılmak istediğine emin misin?',
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Hayır', style: TextStyle(color: Colors.white54)),
+                        child: const Text('Hayır',
+                            style: TextStyle(color: Colors.white54)),
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Ayrıl', style: TextStyle(color: AppTheme.red, fontWeight: FontWeight.bold)),
+                        child: const Text('Ayrıl',
+                            style: TextStyle(
+                                color: AppTheme.red,
+                                fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -291,7 +526,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 if (confirm == true) provider.leaveVenue();
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: AppTheme.red.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -301,7 +537,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   children: [
                     Icon(Icons.logout_rounded, size: 16, color: AppTheme.red),
                     SizedBox(width: 6),
-                    Text('Ayrıl', style: TextStyle(fontFamily: 'Space Mono', fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.red)),
+                    Text('Ayrıl',
+                        style: TextStyle(
+                            fontFamily: 'Space Mono',
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.red)),
                   ],
                 ),
               ),
@@ -323,227 +564,333 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         final sheetCtx = context;
         return StatefulBuilder(
           builder: (context, setSheetState) => Container(
-          height: MediaQuery.of(context).size.height * 0.7,
-          decoration: const BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 16),
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(2))),
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('Şu an Neredesin?', style: TextStyle(fontFamily: 'Cormorant Garamond', fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: provider.venues.length,
-                  itemBuilder: (context, index) {
-                    // Active venue always first
-                    final sorted = [
-                      ...provider.venues.where((v) => v.name == provider.currentUser?.campusZone),
-                      ...provider.venues.where((v) => v.name != provider.currentUser?.campusZone),
-                    ];
-                    final venue = sorted[index];
-                    final isLoading = _loadingId == venue.id;
-                    final isActive = provider.currentUser?.campusZone == venue.name;
-                    final hasActiveVenue = provider.currentUser?.campusZone != null &&
-                        provider.venues.any((v) => v.name == provider.currentUser?.campusZone);
-                    final showDivider = hasActiveVenue && index == 1;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (showDivider)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
-                            child: Text(
-                              'Mekan Değiştir',
-                              style: TextStyle(
-                                fontFamily: 'Cormorant Garamond',
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white.withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ),
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 2),
-                      decoration: const BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Colors.white10, width: 0.5)),
-                      ),
-                      child: Row(
+            height: MediaQuery.of(context).size.height * 0.7,
+            decoration: const BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: AppTheme.border,
+                        borderRadius: BorderRadius.circular(2))),
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Şu an Neredesin?',
+                      style: TextStyle(
+                          fontFamily: 'Cormorant Garamond',
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: provider.venues.length,
+                    itemBuilder: (context, index) {
+                      // Active venue always first
+                      final sorted = [
+                        ...provider.venues.where(
+                            (v) => v.name == provider.currentUser?.campusZone),
+                        ...provider.venues.where(
+                            (v) => v.name != provider.currentUser?.campusZone),
+                      ];
+                      final venue = sorted[index];
+                      final isLoading = _loadingId == venue.id;
+                      final isActive =
+                          provider.currentUser?.campusZone == venue.name;
+                      final hasActiveVenue =
+                          provider.currentUser?.campusZone != null &&
+                              provider.venues.any((v) =>
+                                  v.name == provider.currentUser?.campusZone);
+                      final showDivider = hasActiveVenue && index == 1;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Left: navigate to venue detail
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                HapticFeedback.lightImpact();
-                                Navigator.pop(context);
-                                Navigator.push(context, MaterialPageRoute(builder: (_) => VenueDetailScreen(venue: venue)));
-                              },
-                              child: Container(
-                                color: Colors.transparent,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                child: Row(
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: venue.imageUrl != null && venue.imageUrl!.isNotEmpty
-                                          ? Image.network(
-                                              venue.imageUrl!,
-                                              width: 52,
-                                              height: 52,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => _venueFallback(52),
-                                            )
-                                          : _venueFallback(52),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(venue.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
-                                        const SizedBox(height: 3),
-                                        Text('${venue.peopleCount} Kişi', style: const TextStyle(fontFamily: 'Space Mono', fontSize: 10, color: Colors.white54)),
-                                      ],
-                                    ),
-                                  ],
+                          if (showDivider)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
+                              child: Text(
+                                'Mekan Değiştir',
+                                style: TextStyle(
+                                  fontFamily: 'Cormorant Garamond',
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withOpacity(0.7),
                                 ),
                               ),
                             ),
-                          ),
-                          // Right: check-in button (inactive if already here)
-                          GestureDetector(
-                            onTap: isActive || isLoading ? null : () async {
-                              HapticFeedback.mediumImpact();
-                              setSheetState(() => _loadingId = venue.id);
-                              final errorMsg = await provider.checkIn(venue);
-                              if (!sheetCtx.mounted) return;
-                              if (errorMsg != null) {
-                                setSheetState(() => _loadingId = null);
-                                if (errorMsg.contains('enerjin')) {
-                                  Navigator.pop(sheetCtx);
-                                  showDialog(
-                                    context: sheetCtx,
-                                    builder: (ctx) => AlertDialog(
-                                      backgroundColor: AppTheme.surface,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                                      title: const Column(
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 2),
+                            decoration: const BoxDecoration(
+                              border: Border(
+                                  bottom: BorderSide(
+                                      color: Colors.white10, width: 0.5)),
+                            ),
+                            child: Row(
+                              children: [
+                                // Left: navigate to venue detail
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      HapticFeedback.lightImpact();
+                                      Navigator.pop(context);
+                                      Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (_) => VenueDetailScreen(
+                                                  venue: venue)));
+                                    },
+                                    child: Container(
+                                      color: Colors.transparent,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 12),
+                                      child: Row(
                                         children: [
-                                          Icon(Icons.bolt_rounded, color: AppTheme.accent, size: 48),
-                                          SizedBox(height: 16),
-                                          Text('Enerjin Bitti!', style: TextStyle(color: Colors.white, fontFamily: 'Cormorant Garamond', fontSize: 28, fontWeight: FontWeight.bold)),
+                                          ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            child: venue.imageUrl != null &&
+                                                    venue.imageUrl!.isNotEmpty
+                                                ? Image.network(
+                                                    venue.imageUrl!,
+                                                    width: 52,
+                                                    height: 52,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder:
+                                                        (_, __, ___) =>
+                                                            _venueFallback(52),
+                                                  )
+                                                : _venueFallback(52),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(venue.name,
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.white,
+                                                      fontSize: 15)),
+                                              const SizedBox(height: 3),
+                                              Text('${venue.peopleCount} Kişi',
+                                                  style: const TextStyle(
+                                                      fontFamily: 'Space Mono',
+                                                      fontSize: 10,
+                                                      color: Colors.white54)),
+                                            ],
+                                          ),
                                         ],
                                       ),
-                                      content: const Text(
-                                        'Mekan değiştirmek için yeterli enerjin kalmadı. Enerjinin dolmasını bekleyebilir veya kampüs etkinliklerine katılarak enerji kazanabilirsin.',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
-                                      ),
-                                      actions: [
-                                        Center(
-                                          child: TextButton(
-                                            onPressed: () => Navigator.pop(ctx),
-                                            style: TextButton.styleFrom(
-                                              backgroundColor: AppTheme.surface2,
-                                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            ),
-                                            child: const Text('Anladım', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold, fontFamily: 'Space Mono')),
-                                          ),
-                                        ),
-                                      ],
                                     ),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: AppTheme.red));
-                                }
-                              } else {
-                                Navigator.pop(sheetCtx);
-                                _showToast(sheetCtx, icon: '⚡', title: '${venue.name}\'e geçtin  −1 ⚡', borderColor: AppTheme.accent, dopamine: true);
-                              }
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              margin: const EdgeInsets.only(left: 10),
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isActive ? 14 : 12,
-                                vertical: isActive ? 10 : 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isLoading
-                                    ? AppTheme.accent.withValues(alpha: 0.9)
-                                    : isActive
-                                        ? AppTheme.accent
-                                        : AppTheme.accent.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(isActive ? 14 : 12),
-                                border: Border.all(
-                                  color: isActive || isLoading
-                                      ? AppTheme.accent
-                                      : AppTheme.accent.withValues(alpha: 0.35),
-                                  width: isActive ? 0 : 1,
+                                  ),
                                 ),
-                                boxShadow: isActive
-                                    ? [BoxShadow(color: AppTheme.accent.withValues(alpha: 0.35), blurRadius: 10, spreadRadius: 1)]
-                                    : null,
-                              ),
-                              child: isLoading
-                                  ? const SizedBox(
-                                      width: 42,
-                                      height: 14,
-                                      child: Center(
-                                        child: SizedBox(
-                                          width: 12, height: 12,
-                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                                        ),
+                                // Right: check-in button (inactive if already here)
+                                GestureDetector(
+                                  onTap: isActive || isLoading
+                                      ? null
+                                      : () async {
+                                          HapticFeedback.mediumImpact();
+                                          setSheetState(
+                                              () => _loadingId = venue.id);
+                                          final errorMsg =
+                                              await provider.checkIn(venue);
+                                          if (!sheetCtx.mounted) return;
+                                          if (errorMsg != null) {
+                                            setSheetState(
+                                                () => _loadingId = null);
+                                            if (errorMsg.contains('enerjin')) {
+                                              Navigator.pop(sheetCtx);
+                                              showDialog(
+                                                context: sheetCtx,
+                                                builder: (ctx) => AlertDialog(
+                                                  backgroundColor:
+                                                      AppTheme.surface,
+                                                  shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              24)),
+                                                  title: const Column(
+                                                    children: [
+                                                      Icon(Icons.bolt_rounded,
+                                                          color:
+                                                              AppTheme.accent,
+                                                          size: 48),
+                                                      SizedBox(height: 16),
+                                                      Text('Enerjin Bitti!',
+                                                          style: TextStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                              fontFamily:
+                                                                  'Cormorant Garamond',
+                                                              fontSize: 28,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold)),
+                                                    ],
+                                                  ),
+                                                  content: const Text(
+                                                    'Mekan değiştirmek için yeterli enerjin kalmadı. Enerjinin dolmasını bekleyebilir veya kampüs etkinliklerine katılarak enerji kazanabilirsin.',
+                                                    textAlign: TextAlign.center,
+                                                    style: TextStyle(
+                                                        color: Colors.white70,
+                                                        fontSize: 14,
+                                                        height: 1.5),
+                                                  ),
+                                                  actions: [
+                                                    Center(
+                                                      child: TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(ctx),
+                                                        style: TextButton
+                                                            .styleFrom(
+                                                          backgroundColor:
+                                                              AppTheme.surface2,
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                                  horizontal:
+                                                                      24,
+                                                                  vertical: 12),
+                                                          shape: RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          12)),
+                                                        ),
+                                                        child: const Text(
+                                                            'Anladım',
+                                                            style: TextStyle(
+                                                                color: AppTheme
+                                                                    .accent,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontFamily:
+                                                                    'Space Mono')),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            } else {
+                                              ScaffoldMessenger.of(sheetCtx)
+                                                  .showSnackBar(SnackBar(
+                                                      content: Text(errorMsg),
+                                                      backgroundColor:
+                                                          AppTheme.red));
+                                            }
+                                          } else {
+                                            Navigator.pop(sheetCtx);
+                                            _showToast(sheetCtx,
+                                                icon: '⚡',
+                                                title:
+                                                    '${venue.name}\'e geçtin  −1 ⚡',
+                                                borderColor: AppTheme.accent,
+                                                dopamine: true);
+                                          }
+                                        },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    margin: const EdgeInsets.only(left: 10),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: isActive ? 14 : 12,
+                                      vertical: isActive ? 10 : 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isLoading
+                                          ? AppTheme.accent.withOpacity(0.9)
+                                          : isActive
+                                              ? AppTheme.accent
+                                              : AppTheme.accent
+                                                  .withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(
+                                          isActive ? 14 : 12),
+                                      border: Border.all(
+                                        color: isActive || isLoading
+                                            ? AppTheme.accent
+                                            : AppTheme.accent.withOpacity(0.35),
+                                        width: isActive ? 0 : 1,
                                       ),
-                                    )
-                                  : isActive
-                                      ? const Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.location_on_rounded, size: 11, color: Colors.black),
-                                            SizedBox(width: 3),
-                                            Text(
-                                              'BURADASIN',
-                                              style: TextStyle(
-                                                fontFamily: 'Space Mono',
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.black,
-                                                letterSpacing: 0.5,
+                                      boxShadow: isActive
+                                          ? [
+                                              BoxShadow(
+                                                  color: AppTheme.accent
+                                                      .withOpacity(0.35),
+                                                  blurRadius: 10,
+                                                  spreadRadius: 1)
+                                            ]
+                                          : null,
+                                    ),
+                                    child: isLoading
+                                        ? const SizedBox(
+                                            width: 42,
+                                            height: 14,
+                                            child: Center(
+                                              child: SizedBox(
+                                                width: 12,
+                                                height: 12,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.black),
                                               ),
                                             ),
-                                          ],
-                                        )
-                                      : const Text(
-                                          'GİT',
-                                          style: TextStyle(
-                                            fontFamily: 'Space Mono',
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppTheme.accent,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
+                                          )
+                                        : isActive
+                                            ? const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                      Icons.location_on_rounded,
+                                                      size: 11,
+                                                      color: Colors.black),
+                                                  SizedBox(width: 3),
+                                                  Text(
+                                                    'BURADASIN',
+                                                    style: TextStyle(
+                                                      fontFamily: 'Space Mono',
+                                                      fontSize: 9,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.black,
+                                                      letterSpacing: 0.5,
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            : const Text(
+                                                'GİT',
+                                                style: TextStyle(
+                                                  fontFamily: 'Space Mono',
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppTheme.accent,
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    ),
-                      ],
-                    );
-                },
-              ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
             ),
-            const SizedBox(height: 20),
-          ],
-        ),
-        ),
-      );
-    },
+          ),
+        );
+      },
     );
   }
 
@@ -551,13 +898,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return GestureDetector(
       onTap: () {
         HapticFeedback.mediumImpact();
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyQuizScreen()));
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const DailyQuizScreen()));
       },
       child: Container(
         margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [AppTheme.accent.withOpacity(0.2), AppTheme.accent.withOpacity(0.05)]),
+          gradient: LinearGradient(colors: [
+            AppTheme.accent.withOpacity(0.2),
+            AppTheme.accent.withOpacity(0.05)
+          ]),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppTheme.accent.withOpacity(0.5)),
         ),
@@ -565,21 +916,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: const BoxDecoration(color: AppTheme.accent, shape: BoxShape.circle),
-              child: const Icon(Icons.psychology_rounded, color: Colors.black, size: 24),
+              decoration: const BoxDecoration(
+                  color: AppTheme.accent, shape: BoxShape.circle),
+              child: const Icon(Icons.psychology_rounded,
+                  color: Colors.black, size: 24),
             ),
             const SizedBox(width: 16),
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Günün Sorusunu Çöz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Text('Günün Sorusunu Çöz',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
                   SizedBox(height: 4),
-                  Text('+5 PWR Kazan', style: TextStyle(fontFamily: 'Space Mono', fontSize: 10, color: AppTheme.accent)),
+                  Text('+5 PWR Kazan',
+                      style: TextStyle(
+                          fontFamily: 'Space Mono',
+                          fontSize: 10,
+                          color: AppTheme.accent)),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: AppTheme.accent),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                size: 16, color: AppTheme.accent),
           ],
         ),
       ),
@@ -596,21 +958,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildRadarVisualization(List<User> users, Venue? currentVenue) {
-    final hasPhoto = currentVenue?.imageUrl != null && currentVenue!.imageUrl!.isNotEmpty;
+    final hasPhoto =
+        currentVenue?.imageUrl != null && currentVenue!.imageUrl!.isNotEmpty;
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.35,
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(vertical: 24),
+    return SizedBox(
+      width: 310,
+      height: 310,
       child: Stack(
         alignment: Alignment.center,
         children: [
-
           // ── Layer 1: Venue photo clipped to circle (background) ──
           if (hasPhoto)
             Container(
-              width: 300,
-              height: 300,
+              width: 310,
+              height: 310,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 image: DecorationImage(
@@ -623,8 +984,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           // ── Layer 2: Dark vignette over photo so radar is visible ──
           if (hasPhoto)
             Container(
-              width: 300,
-              height: 300,
+              width: 310,
+              height: 310,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
@@ -639,14 +1000,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
           // ── Layer 3: Concentric radar rings ──
           ...List.generate(3, (index) {
-            final size = (index + 1) * 100.0;
+            final size = (index + 1) * 105.0;
             return Container(
               width: size,
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: AppTheme.accent.withOpacity(hasPhoto ? 0.35 + (0.1 * (3 - index)) : 0.1 + (0.05 * (3 - index))),
+                  color: AppTheme.accent.withOpacity(hasPhoto
+                      ? 0.35 + (0.1 * (3 - index))
+                      : 0.1 + (0.05 * (3 - index))),
                   width: 1.5,
                 ),
               ),
@@ -660,8 +1023,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               return Transform.rotate(
                 angle: _radarController.value * 2 * math.pi,
                 child: Container(
-                  width: 300,
-                  height: 300,
+                  width: 310,
+                  height: 310,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: SweepGradient(
@@ -680,11 +1043,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
           // ── Layer 5: Outer border ring ──
           Container(
-            width: 300,
-            height: 300,
+            width: 310,
+            height: 310,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: AppTheme.accent.withOpacity(0.4), width: 1.5),
+              border: Border.all(
+                  color: AppTheme.accent.withOpacity(0.4), width: 1.5),
             ),
           ),
 
@@ -692,14 +1056,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           if (users.isNotEmpty)
             ...List.generate(math.min(users.length, 6), (index) {
               final user = users[index];
-              final angle = (index * (math.pi * 2 / math.min(users.length, 6))) + (math.pi / 4);
-              final distance = 70.0 + (index % 3) * 30.0;
+              final angle =
+                  (index * (math.pi * 2 / math.min(users.length, 6))) +
+                      (math.pi / 4);
+              final distance = 75.0 + (index % 3) * 30.0;
               final offsetX = math.cos(angle) * distance;
               final offsetY = math.sin(angle) * distance;
               // Kenara yakınsa küçül: 70px→44, 130px→30
-              final avatarSize = (44.0 - (distance - 70.0) / 60.0 * 14.0).clamp(30.0, 44.0);
+              final avatarSize =
+                  (44.0 - (distance - 70.0) / 60.0 * 14.0).clamp(30.0, 44.0);
               // Kenara yakınsa gölge opaklığı artar: 70px→0.0, 130px→0.45
-              final shadowOpacity = ((distance - 70.0) / 60.0 * 0.45).clamp(0.0, 0.45);
+              final shadowOpacity =
+                  ((distance - 70.0) / 60.0 * 0.45).clamp(0.0, 0.45);
               final firstName = user.name.split(' ').first;
 
               return Transform.translate(
@@ -707,7 +1075,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 child: GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => OtherProfileScreen(user: user)));
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => OtherProfileScreen(user: user)));
                   },
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -720,14 +1091,26 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             height: avatarSize,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white54, width: 1.5),
+                              border:
+                                  Border.all(color: Colors.white54, width: 1.5),
                               image: user.profileImageUrl != null
-                                  ? DecorationImage(image: user.profileImageUrl!.startsWith('http') ? NetworkImage(user.profileImageUrl!) as ImageProvider : FileImage(File(user.profileImageUrl!)), fit: BoxFit.cover)
+                                  ? DecorationImage(
+                                      image: user.profileImageUrl!
+                                              .startsWith('http')
+                                          ? NetworkImage(user.profileImageUrl!)
+                                              as ImageProvider
+                                          : FileImage(
+                                              File(user.profileImageUrl!)),
+                                      fit: BoxFit.cover)
                                   : null,
                               color: AppTheme.surface3,
                             ),
                             alignment: Alignment.center,
-                            child: user.profileImageUrl == null ? Text(user.avatar, style: TextStyle(fontSize: avatarSize * 0.45)) : null,
+                            child: user.profileImageUrl == null
+                                ? Text(user.avatar,
+                                    style:
+                                        TextStyle(fontSize: avatarSize * 0.45))
+                                : null,
                           ),
                           // Kenar gölgesi
                           if (shadowOpacity > 0)
@@ -741,8 +1124,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             ),
                         ],
                       ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
-                        delay: (index * 200).ms, duration: 1.5.seconds, begin: const Offset(0.9, 0.9), end: const Offset(1.1, 1.1),
-                      ),
+                            delay: (index * 200).ms,
+                            duration: 1.5.seconds,
+                            begin: const Offset(0.9, 0.9),
+                            end: const Offset(1.1, 1.1),
+                          ),
                       const SizedBox(height: 3),
                       Text(
                         firstName,
@@ -750,7 +1136,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           fontSize: avatarSize * 0.22,
                           color: Colors.white.withOpacity(0.75),
                           fontFamily: 'Space Mono',
-                          shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+                          shadows: const [
+                            Shadow(color: Colors.black, blurRadius: 4)
+                          ],
                         ),
                       ),
                     ],
@@ -770,10 +1158,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   shape: BoxShape.circle,
                   color: Colors.black.withOpacity(0.7),
                   border: Border.all(color: AppTheme.accent, width: 2),
-                  boxShadow: [BoxShadow(color: AppTheme.accent.withOpacity(0.6), blurRadius: 16)],
+                  boxShadow: [
+                    BoxShadow(
+                        color: AppTheme.accent.withOpacity(0.6), blurRadius: 16)
+                  ],
                 ),
                 alignment: Alignment.center,
-                child: const Icon(Icons.radar, color: AppTheme.accent, size: 20),
+                child:
+                    const Icon(Icons.radar, color: AppTheme.accent, size: 20),
               ),
               if (currentVenue != null) ...[
                 const SizedBox(height: 4),
@@ -793,7 +1185,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ],
       ).animate().fadeIn(duration: 800.ms),
     );
-
   }
 
   Widget _buildEmptyState() {
@@ -805,12 +1196,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           const SizedBox(height: 24),
           const Text(
             'RADARINDA KİMSE YOK',
-            style: TextStyle(fontFamily: 'Space Mono', fontSize: 12, letterSpacing: 2, color: Colors.white54, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                fontFamily: 'Space Mono',
+                fontSize: 12,
+                letterSpacing: 2,
+                color: Colors.white54,
+                fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
             'Farklı bir mekana gitmeyi dene.',
-            style: TextStyle(fontFamily: 'Space Mono', fontSize: 10, color: Colors.white24),
+            style: TextStyle(
+                fontFamily: 'Space Mono', fontSize: 10, color: Colors.white24),
           ),
         ],
       ).animate().fadeIn(delay: 300.ms),
@@ -823,55 +1220,76 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: GestureDetector(
         onTap: () {
           HapticFeedback.mediumImpact();
-          Navigator.push(context, MaterialPageRoute(builder: (_) => VenueDetailScreen(venue: venue)));
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => VenueDetailScreen(venue: venue)));
         },
         child: Container(
           decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Colors.white10, width: 0.5)),
+            border:
+                Border(bottom: BorderSide(color: Colors.white10, width: 0.5)),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Row(
               children: [
-              // Venue photo – same width/height as the card height
-              SizedBox(
-                width: 80,
-                height: 80,
-                child: venue.imageUrl != null && venue.imageUrl!.isNotEmpty
-                    ? Image.network(
-                        venue.imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _venueFallback(80),
-                      )
-                    : _venueFallback(80),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(venue.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.people_outline_rounded, size: 12, color: Colors.white38),
-                        const SizedBox(width: 4),
-                        Text('${venue.peopleCount} Kişi', style: const TextStyle(fontFamily: 'Space Mono', fontSize: 10, color: Colors.white54)),
-                      ],
-                    ),
-                  ],
+                // Venue photo – same width/height as the card height
+                SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: venue.imageUrl != null && venue.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          venue.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _venueFallback(80),
+                        )
+                      : _venueFallback(80),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(color: AppTheme.accent, borderRadius: BorderRadius.circular(12)),
-                  child: const Text('GİT', style: TextStyle(fontFamily: 'Space Mono', fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(venue.name,
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.people_outline_rounded,
+                              size: 12, color: Colors.white38),
+                          const SizedBox(width: 4),
+                          Text('${venue.peopleCount} Kişi',
+                              style: const TextStyle(
+                                  fontFamily: 'Space Mono',
+                                  fontSize: 10,
+                                  color: Colors.white54)),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                        color: AppTheme.accent,
+                        borderRadius: BorderRadius.circular(12)),
+                    child: const Text('GİT',
+                        style: TextStyle(
+                            fontFamily: 'Space Mono',
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -883,7 +1301,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       width: size,
       height: size,
       color: AppTheme.surface3,
-      child: const Icon(Icons.location_city_rounded, color: Colors.white10, size: 28),
+      child: const Icon(Icons.location_city_rounded,
+          color: Colors.white10, size: 28),
     );
   }
 }
@@ -906,10 +1325,11 @@ void _showToast(
         decoration: BoxDecoration(
           color: const Color(0xFF181818),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: borderColor.withValues(alpha: 0.55), width: 1.2),
+          border: Border.all(color: borderColor.withOpacity(0.55), width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: dopamine ? AppTheme.accent.withValues(alpha: 0.28) : Colors.black54,
+              color:
+                  dopamine ? AppTheme.accent.withOpacity(0.28) : Colors.black54,
               blurRadius: dopamine ? 22 : 14,
               spreadRadius: dopamine ? 2 : 0,
             ),
@@ -924,10 +1344,17 @@ void _showToast(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.2)),
+                  Text(title,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          letterSpacing: 0.2)),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
-                    Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 11)),
                   ],
                 ],
               ),
@@ -980,7 +1407,18 @@ class _RadarUserCardState extends State<_RadarUserCard>
   late BuildContext _ctx;
 
   static const _emojis = ['⚡', '🔥', '✨', '💫', '⭐', '🌟'];
-  static const _burst = ['🎉', '💥', '⚡', '🔥', '✨', '💫', '🌟', '❤️‍🔥', '👀', '😍'];
+  static const _burst = [
+    '🎉',
+    '💥',
+    '⚡',
+    '🔥',
+    '✨',
+    '💫',
+    '🌟',
+    '❤️‍🔥',
+    '👀',
+    '😍'
+  ];
 
   @override
   void initState() {
@@ -1080,9 +1518,15 @@ class _RadarUserCardState extends State<_RadarUserCard>
     _particleTimer?.cancel();
 
     HapticFeedback.heavyImpact();
-    Future.delayed(120.ms, () { if (mounted) HapticFeedback.heavyImpact(); });
-    Future.delayed(250.ms, () { if (mounted) HapticFeedback.heavyImpact(); });
-    Future.delayed(400.ms, () { if (mounted) HapticFeedback.vibrate(); });
+    Future.delayed(120.ms, () {
+      if (mounted) HapticFeedback.heavyImpact();
+    });
+    Future.delayed(250.ms, () {
+      if (mounted) HapticFeedback.heavyImpact();
+    });
+    Future.delayed(400.ms, () {
+      if (mounted) HapticFeedback.vibrate();
+    });
 
     final rand = math.Random();
     setState(() {
@@ -1151,10 +1595,7 @@ class _RadarUserCardState extends State<_RadarUserCard>
         animation: Listenable.merge([_progressCtrl, _pulseCtrl]),
         builder: (context, _) => _buildCard(alreadyWinked, winkCost),
       ),
-    )
-        .animate()
-        .fadeIn(delay: (widget.index * 80).ms)
-        .scale(
+    ).animate().fadeIn(delay: (widget.index * 80).ms).scale(
           begin: const Offset(0.85, 0.85),
           end: const Offset(1, 1),
           duration: 400.ms,
@@ -1170,35 +1611,40 @@ class _RadarUserCardState extends State<_RadarUserCard>
       alignment: Alignment.topCenter,
       children: [
         Container(
-          width: 110,
-          margin: const EdgeInsets.only(right: 10),
-          padding: const EdgeInsets.fromLTRB(10, 14, 10, 12),
+          width: 80,
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
           decoration: BoxDecoration(
             color: _isCompleted
-                ? AppTheme.accent.withValues(alpha: 0.15)
+                ? AppTheme.accent.withOpacity(0.15)
                 : AppTheme.surface2,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _isPressed
-                  ? AppTheme.accent.withValues(alpha: 0.4 + 0.6 * p)
+                  ? AppTheme.accent.withOpacity(0.4 + 0.6 * p)
                   : alreadyWinked
-                      ? AppTheme.accent.withValues(alpha: 0.28)
+                      ? AppTheme.accent.withOpacity(0.28)
                       : Colors.white10,
               width: _isPressed ? 1.5 : (alreadyWinked ? 1.2 : 1.0),
             ),
             boxShadow: glow > 0
-                ? [BoxShadow(color: AppTheme.accent.withValues(alpha: glow), blurRadius: 24 * p, spreadRadius: 4 * p)]
+                ? [
+                    BoxShadow(
+                        color: AppTheme.accent.withOpacity(glow),
+                        blurRadius: 24 * p,
+                        spreadRadius: 4 * p)
+                  ]
                 : null,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _buildAvatar(alreadyWinked),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               Text(
                 widget.user.name.split(' ').first,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
                   color: alreadyWinked ? Colors.white54 : Colors.white,
                 ),
@@ -1206,13 +1652,13 @@ class _RadarUserCardState extends State<_RadarUserCard>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               Text(
                 widget.user.name.split(' ').length > 1
                     ? widget.user.name.split(' ').last
                     : widget.user.department.split(' ').first,
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: 11,
                   color: Colors.white38,
                 ),
                 textAlign: TextAlign.center,
@@ -1230,31 +1676,29 @@ class _RadarUserCardState extends State<_RadarUserCard>
   Widget _buildAvatar(bool alreadyWinked) {
     final p = _progressCtrl.value;
     return SizedBox(
-      width: 44,
-      height: 44,
+      width: 46,
+      height: 46,
       child: Stack(
         alignment: Alignment.center,
         children: [
           if (_showWink)
             Container(
-              width: 38,
-              height: 38,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.surface3,
-                border: Border.all(color: AppTheme.accent, width: 2.5),
+                border: Border.all(color: AppTheme.accent, width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.accent.withValues(alpha: 0.5),
+                    color: AppTheme.accent.withOpacity(0.5),
                     blurRadius: 14,
                   )
                 ],
               ),
               alignment: Alignment.center,
-              child: const Text('😉', style: TextStyle(fontSize: 20)),
-            )
-                .animate()
-                .scale(
+              child: const Text('😉', style: TextStyle(fontSize: 18)),
+            ).animate().scale(
                   begin: const Offset(1.5, 1.5),
                   end: const Offset(1.0, 1.0),
                   duration: 400.ms,
@@ -1262,8 +1706,8 @@ class _RadarUserCardState extends State<_RadarUserCard>
                 )
           else
             Container(
-              width: 38,
-              height: 38,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.surface3,
@@ -1283,13 +1727,13 @@ class _RadarUserCardState extends State<_RadarUserCard>
               alignment: Alignment.center,
               child: widget.user.profileImageUrl == null
                   ? Text(widget.user.avatar,
-                      style: const TextStyle(fontSize: 18))
+                      style: const TextStyle(fontSize: 16))
                   : null,
             ),
           if (_isPressed)
             SizedBox(
-              width: 44,
-              height: 44,
+              width: 46,
+              height: 46,
               child: CircularProgressIndicator(
                 value: _isCompleted ? 1.0 : p,
                 strokeWidth: 3.0,
@@ -1314,7 +1758,7 @@ class _RadarUserCardState extends State<_RadarUserCard>
                   color: AppTheme.surface2,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: AppTheme.accent.withValues(alpha: 0.5),
+                    color: AppTheme.accent.withOpacity(0.5),
                     width: 1,
                   ),
                 ),

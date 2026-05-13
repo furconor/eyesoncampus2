@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "300414934503",
+    "project_id": "eyesoncampus-57806",
+    "storage_bucket": "eyesoncampus-57806.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:300414934503:android:d3943cfcd09020358c3142",
+        "android_client_info": {
+          "package_name": "com.eyesoncampus.eyesoncampus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlOPBDlQ8I4_Ra-N5F7tcKIWaBGj-Wvec"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

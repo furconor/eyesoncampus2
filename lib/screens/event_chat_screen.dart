@@ -260,28 +260,61 @@ class _EventChatScreenState extends State<EventChatScreen> {
                 ],
               ),
             ),
-            GestureDetector(
-              onTap: () async {
-                HapticFeedback.mediumImpact();
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor: AppTheme.surface,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    title: const Text('Etkinlikten Ayrıl', style: TextStyle(color: Colors.white, fontFamily: 'Cormorant Garamond', fontSize: 22, fontWeight: FontWeight.bold)),
-                    content: Text(
-                      '"${widget.event.title}" etkinliğinden ayrılmak istediğine emin misin?',
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+            Builder(builder: (context) {
+              final isCreator = provider.currentUser?.id == widget.event.createdBy;
+              final buttonText = isCreator ? 'Bitir' : 'Ayrıl';
+              final dialogTitle = isCreator ? 'Etkinliği Bitir' : 'Etkinlikten Ayrıl';
+              final dialogContent = isCreator
+                  ? '"${widget.event.title}" etkinliğini bitirmek istediğine emin misin?'
+                  : '"${widget.event.title}" etkinliğinden ayrılmak istediğine emin misin?';
+
+              return GestureDetector(
+                onTap: () async {
+                  HapticFeedback.mediumImpact();
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      backgroundColor: AppTheme.surface,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      title: Text(dialogTitle, style: const TextStyle(color: Colors.white, fontFamily: 'Cormorant Garamond', fontSize: 22, fontWeight: FontWeight.bold)),
+                      content: Text(
+                        dialogContent,
+                        style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Hayır', style: TextStyle(color: Colors.white54)),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: Text(buttonText, style: const TextStyle(color: AppTheme.red, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Hayır', style: TextStyle(color: Colors.white54)),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Ayrıl', style: TextStyle(color: AppTheme.red, fontWeight: FontWeight.bold)),
-                      ),
+                  );
+                  if (confirm == true && context.mounted) {
+                    if (isCreator) {
+                      await provider.finishEvent(widget.event.id);
+                    } else {
+                      await provider.joinEvent(widget.event.id, false);
+                    }
+                    Navigator.pop(context);
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppTheme.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppTheme.red.withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(isCreator ? Icons.stop_circle_outlined : Icons.logout_rounded, size: 14, color: AppTheme.red),
+                      const SizedBox(width: 5),
+                      Text(buttonText, style: const TextStyle(fontFamily: 'Space Mono', fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.red)),
                     ],
                   ),
                 );
@@ -297,16 +330,8 @@ class _EventChatScreenState extends State<EventChatScreen> {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: AppTheme.red.withOpacity(0.4)),
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.logout_rounded, size: 14, color: AppTheme.red),
-                    SizedBox(width: 5),
-                    Text('Ayrıl', style: TextStyle(fontFamily: 'Space Mono', fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.red)),
-                  ],
-                ),
-              ),
-            ),
+              );
+            }),
           ],
         ),
       ),

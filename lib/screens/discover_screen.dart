@@ -132,13 +132,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     String heatLabel;
     if (peopleCount > 15 || venue.heatLevel > 80) {
       heatColor = AppTheme.red; // Very Hot
-      heatLabel = 'Çok Kalabalık';
+      heatLabel = 'ÇOK KALABALIK';
     } else if (peopleCount > 5 || venue.heatLevel > 40) {
       heatColor = Colors.orange; // Medium
-      heatLabel = 'Hareketli';
+      heatLabel = 'HAREKETLİ';
     } else {
       heatColor = AppTheme.accent; // Low/Chill
-      heatLabel = 'Sakin';
+      heatLabel = 'SAKİN';
     }
 
     return GestureDetector(
@@ -215,7 +215,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       ).animate(onPlay: (c) => c.repeat()).fade(duration: 800.ms, begin: 0.4, end: 1.0).then().fade(duration: 800.ms, begin: 1.0, end: 0.4),
                       const SizedBox(width: 6),
                       Text(
-                        heatLabel.toUpperCase(),
+                        heatLabel,
                         style: TextStyle(
                           fontFamily: 'Space Mono',
                           fontSize: 10,

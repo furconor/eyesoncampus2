@@ -521,7 +521,6 @@ class _EventsScreenState extends State<EventsScreen> {
                 if (context.mounted) {
                   Navigator.pop(context);
                   if (success) {
-                    showPointOverlay(context, 2, 'Etkinliğe Katıldın');
                     Navigator.push(context, MaterialPageRoute(builder: (_) => EventChatScreen(event: event)));
                   } else {
                     // Check if there's a time conflict
