@@ -24,9 +24,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _radarController;
-  bool _searchVisible = false;
-  final TextEditingController _searchCtrl = TextEditingController();
-  String _searchQuery = '';
+  final TextEditingController _radarSearchCtrl = TextEditingController();
+  bool _radarSearchVisible = false;
+  String _radarSearchQuery = '';
 
   @override
   void initState() {
@@ -35,15 +35,17 @@ class _HomeScreenState extends State<HomeScreen>
       vsync: this,
       duration: const Duration(seconds: 4),
     )..repeat();
-    _searchCtrl.addListener(() {
-      setState(() => _searchQuery = _searchCtrl.text.toLowerCase());
+    _radarSearchCtrl.addListener(() {
+      setState(() {
+        _radarSearchQuery = _radarSearchCtrl.text.trim().toLowerCase();
+      });
     });
   }
 
   @override
   void dispose() {
     _radarController.dispose();
-    _searchCtrl.dispose();
+    _radarSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -68,11 +70,25 @@ class _HomeScreenState extends State<HomeScreen>
       topVenues = topVenues.take(10).toList();
     }
 
+    final filteredRadarUsers = _radarSearchQuery.isEmpty
+        ? users
+        : users.where((user) {
+            final searchable =
+                '${user.name} ${user.department}'.toLowerCase();
+            return searchable.contains(_radarSearchQuery);
+          }).toList();
+    final radarCountText = _radarSearchQuery.isEmpty
+        ? '${users.length} KİŞİ'
+        : '${filteredRadarUsers.length}/${users.length}';
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          CustomScrollView(
+          MediaQuery.removePadding(
+            context: context,
+            removeBottom: true,
+            child: CustomScrollView(
             physics: const NeverScrollableScrollPhysics(),
             slivers: [
               _buildAppBar(context, provider),
@@ -81,212 +97,169 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               if (provider.currentUser?.quizCompleted == false)
                 SliverToBoxAdapter(child: _buildDailyQuizCard(context)),
-              SliverToBoxAdapter(
-                child: _buildRadarVisualization(
-                    users,
-                    isCheckedIn
-                        ? _findCurrentVenue(provider, me?.campusZone)
-                        : null),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        isCheckedIn ? 'RADARINDAKİLER' : 'EN POPÜLER MEKANLAR',
-                        style: const TextStyle(
-                            fontFamily: 'Space Mono',
-                            fontSize: 10,
-                            letterSpacing: 2,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.accent),
-                      ),
-                      Text(
-                        isCheckedIn ? '${users.length} KİŞİ' : '',
-                        style: const TextStyle(
-                            fontFamily: 'Space Mono',
-                            fontSize: 10,
-                            color: Colors.white54),
-                      ),
-                    ],
+              if (isCheckedIn) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 72),
+                    child: _buildRadarVisualization(
+                      users, provider.venues.firstWhere(
+                        (v) => v.name == me?.campusZone,
+                        orElse: () => provider.venues.isNotEmpty ? provider.venues.first : Venue(id: '', name: me?.campusZone ?? '', icon: '📍', peopleCount: users.length, heatLevel: 0.5),
+                      )),
                   ),
                 ),
-              ),
-              if (isCheckedIn && users.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: Column(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 78),
+                    child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      // ── Radar (Expanded: kalan tüm alanı doldurur) ──
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            HapticFeedback.mediumImpact();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => RadarMapScreen(
-                                  users: users,
-                                  venue: _findCurrentVenue(
-                                      provider, me?.campusZone),
-                                ),
-                              ),
-                            );
-                          },
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: _buildRadarVisualization(users,
-                                _findCurrentVenue(provider, me?.campusZone)),
-                          ),
-                        ),
-                      ),
-
-                      // ── BURADA OLANLAR ve Arama çubuğu (İnline) ──
+                      // RADARINDAKİLER header
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
+                        padding: const EdgeInsets.fromLTRB(24, 6, 24, 4),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'BURADA OLANLAR',
-                              style: TextStyle(
-                                  fontFamily: 'Space Mono',
-                                  fontSize: 10,
-                                  letterSpacing: 2,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.accent),
-                            ),
-                            if (_searchVisible)
+                            const Text('RADARINDAKİLER',
+                                style: TextStyle(
+                                    fontFamily: 'Space Mono',
+                                    fontSize: 10,
+                                    letterSpacing: 2,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.accent)),
+                            if (_radarSearchVisible) ...[
+                              const SizedBox(width: 10),
                               Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12),
-                                  child: TextField(
-                                    controller: _searchCtrl,
-                                    autofocus: true,
-                                    style: const TextStyle(
-                                        color: Colors.white, fontSize: 12),
-                                    decoration: const InputDecoration(
-                                      hintText: 'ara...',
-                                      hintStyle: TextStyle(
-                                          color: Colors.white38, fontSize: 12),
-                                      border: InputBorder.none,
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.zero,
+                                child: TextField(
+                                  controller: _radarSearchCtrl,
+                                  autofocus: true,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  cursorColor: AppTheme.accent,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Kullanıcı ara',
+                                    hintStyle: TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
                                     ),
-                                  )
-                                      .animate()
-                                      .fadeIn(duration: 200.ms)
-                                      .slideX(begin: 0.1, end: 0),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
                                 ),
-                              )
-                            else
+                              ),
+                            ] else
                               const Spacer(),
+                            const SizedBox(width: 12),
                             Row(
                               children: [
                                 GestureDetector(
                                   onTap: () {
                                     HapticFeedback.selectionClick();
                                     setState(() {
-                                      _searchVisible = !_searchVisible;
-                                      if (!_searchVisible) _searchCtrl.clear();
+                                      _radarSearchVisible = !_radarSearchVisible;
+                                      if (!_radarSearchVisible) {
+                                        _radarSearchCtrl.clear();
+                                      }
                                     });
                                   },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: _searchVisible
-                                          ? AppTheme.accent.withOpacity(0.15)
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                          color: _searchVisible
-                                              ? AppTheme.accent.withOpacity(0.5)
-                                              : Colors.transparent),
-                                    ),
-                                    child: Icon(
-                                      _searchVisible
-                                          ? Icons.close_rounded
-                                          : Icons.search_rounded,
-                                      size: 16,
-                                      color: _searchVisible
-                                          ? AppTheme.accent
-                                          : Colors.white54,
-                                    ),
+                                  child: Icon(
+                                    _radarSearchVisible
+                                        ? Icons.close_rounded
+                                        : Icons.search_rounded,
+                                    size: 20,
+                                    color: const Color(0xFFFFD700),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  '${users.length} KİŞİ',
-                                  style: const TextStyle(
-                                      fontFamily: 'Space Mono',
-                                      fontSize: 10,
-                                      color: Colors.white54),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.accent.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: AppTheme.accent.withOpacity(0.25),
+                                    ),
+                                  ),
+                                  child: Text(radarCountText,
+                                      style: const TextStyle(
+                                          fontFamily: 'Space Mono',
+                                          fontSize: 9,
+                                          color: AppTheme.accent)),
                                 ),
                               ],
                             ),
                           ],
                         ),
                       ),
-
-                      // ── Profil kartları ──
+                      // Content
                       if (users.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16),
+                        const SizedBox(
+                          height: 134,
                           child: Center(
                             child: Text(
-                              'RADARINDA KİMSE YOK',
-                              style: TextStyle(
-                                  fontFamily: 'Space Mono',
-                                  fontSize: 10,
-                                  color: Colors.white38,
-                                  letterSpacing: 1.5),
+                            'RADARINDA KİMSE YOK',
+                            style: TextStyle(
+                                fontFamily: 'Space Mono',
+                                fontSize: 11,
+                                color: Colors.white24,
+                                letterSpacing: 2),
+                            ),
+                          ),
+                        )
+                      else if (filteredRadarUsers.isEmpty)
+                        const SizedBox(
+                          height: 134,
+                          child: Center(
+                            child: Text(
+                            'KULLANICI BULUNAMADI',
+                            style: TextStyle(
+                                fontFamily: 'Space Mono',
+                                fontSize: 10,
+                                color: Colors.white38,
+                                letterSpacing: 1.5),
                             ),
                           ),
                         )
                       else
-                        Builder(builder: (context) {
-                          var filtered = _searchQuery.isEmpty
-                              ? users
-                              : users
-                                  .where((u) => u.name
-                                      .toLowerCase()
-                                      .contains(_searchQuery))
-                                  .toList();
-
-                          if (filtered.isEmpty) {
-                            filtered = users;
-                          }
-
-                          return SizedBox(
-                            height: 136,
-                            child: ListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 20),
-                              physics: const BouncingScrollPhysics(),
-                              itemCount: filtered.length,
-                              itemBuilder: (context, index) => _RadarUserCard(
-                                user: filtered[index],
-                                index: index,
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) => OtherProfileScreen(
-                                          user: filtered[index])),
+                        SizedBox(
+                          height: 134,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            itemCount: filteredRadarUsers.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 14),
+                            itemBuilder: (context, index) {
+                              final user = filteredRadarUsers[index];
+                              return SizedBox(
+                                width: 96,
+                                child: _RadarUserCard(
+                                  user: user,
+                                  index: index,
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          OtherProfileScreen(user: user),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          );
-                        }),
-
-                      const SizedBox(height: 90), // nav bar boşluğu
+                              );
+                            },
+                          ),
+                        ),
                     ],
                   ),
-                )
-              else ...[
+                  ),
+                ),
+              ] else ...[
                 // ── Checked-out: Radar (statik) ──
                 SliverToBoxAdapter(
                   child: _buildRadarVisualization([], null),
@@ -325,6 +298,7 @@ class _HomeScreenState extends State<HomeScreen>
                 const SliverToBoxAdapter(child: SizedBox(height: 80)),
               ],
             ],
+          ),
           ),
 
           // Match Overlay
@@ -423,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen>
     final me = provider.currentUser;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
       child: Row(
         children: [
           Expanded(
@@ -960,18 +934,19 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildRadarVisualization(List<User> users, Venue? currentVenue) {
     final hasPhoto =
         currentVenue?.imageUrl != null && currentVenue!.imageUrl!.isNotEmpty;
+    const radarSize = 330.0;
 
     return SizedBox(
-      width: 310,
-      height: 310,
+      width: radarSize,
+      height: radarSize,
       child: Stack(
         alignment: Alignment.center,
         children: [
           // ── Layer 1: Venue photo clipped to circle (background) ──
           if (hasPhoto)
             Container(
-              width: 310,
-              height: 310,
+              width: radarSize,
+              height: radarSize,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 image: DecorationImage(
@@ -984,8 +959,8 @@ class _HomeScreenState extends State<HomeScreen>
           // ── Layer 2: Dark vignette over photo so radar is visible ──
           if (hasPhoto)
             Container(
-              width: 310,
-              height: 310,
+              width: radarSize,
+              height: radarSize,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
@@ -999,7 +974,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
 
           // ── Layer 3: Concentric radar rings ──
-          ...List.generate(3, (index) {
+          ...List.generate(2, (index) {
             final size = (index + 1) * 105.0;
             return Container(
               width: size,
@@ -1023,8 +998,8 @@ class _HomeScreenState extends State<HomeScreen>
               return Transform.rotate(
                 angle: _radarController.value * 2 * math.pi,
                 child: Container(
-                  width: 310,
-                  height: 310,
+                  width: radarSize,
+                  height: radarSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: SweepGradient(
@@ -1043,8 +1018,8 @@ class _HomeScreenState extends State<HomeScreen>
 
           // ── Layer 5: Outer border ring ──
           Container(
-            width: 310,
-            height: 310,
+            width: radarSize,
+            height: radarSize,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
@@ -1595,79 +1570,109 @@ class _RadarUserCardState extends State<_RadarUserCard>
         animation: Listenable.merge([_progressCtrl, _pulseCtrl]),
         builder: (context, _) => _buildCard(alreadyWinked, winkCost),
       ),
-    ).animate().fadeIn(delay: (widget.index * 80).ms).scale(
-          begin: const Offset(0.85, 0.85),
-          end: const Offset(1, 1),
-          duration: 400.ms,
-          curve: Curves.easeOutBack,
-        );
+    );
   }
 
   Widget _buildCard(bool alreadyWinked, int winkCost) {
     final p = _progressCtrl.value;
     final glow = _isPressed ? (0.3 + 0.12 * _pulseCtrl.value) * p : 0.0;
+    final nameParts = widget.user.name.trim().split(RegExp(r'\s+'));
+    final firstName = nameParts.length > 1
+        ? nameParts.take(nameParts.length - 1).join(' ')
+        : widget.user.name;
+    final secondPart =
+        nameParts.length > 1 ? nameParts.last : widget.user.department;
+
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.topCenter,
       children: [
-        Container(
-          width: 80,
-          margin: const EdgeInsets.only(right: 8),
-          padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
-          decoration: BoxDecoration(
-            color: _isCompleted
-                ? AppTheme.accent.withOpacity(0.15)
-                : AppTheme.surface2,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _isPressed
-                  ? AppTheme.accent.withOpacity(0.4 + 0.6 * p)
-                  : alreadyWinked
-                      ? AppTheme.accent.withOpacity(0.28)
-                      : Colors.white10,
-              width: _isPressed ? 1.5 : (alreadyWinked ? 1.2 : 1.0),
-            ),
-            boxShadow: glow > 0
-                ? [
-                    BoxShadow(
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              color: _isCompleted
+                  ? const Color(0xFF1F1A0D)
+                  : const Color(0xFF1F1F1F),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _isPressed
+                    ? AppTheme.accent.withOpacity(0.5 + 0.5 * p)
+                    : alreadyWinked
+                        ? AppTheme.accent.withOpacity(0.32)
+                        : Colors.white.withOpacity(0.14),
+                width: _isPressed ? 1.5 : 1.2,
+              ),
+              boxShadow: glow > 0
+                  ? [
+                      BoxShadow(
                         color: AppTheme.accent.withOpacity(glow),
-                        blurRadius: 24 * p,
-                        spreadRadius: 4 * p)
-                  ]
-                : null,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildAvatar(alreadyWinked),
-              const SizedBox(height: 6),
-              Text(
-                widget.user.name.split(' ').first,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: alreadyWinked ? Colors.white54 : Colors.white,
+                        blurRadius: 18 * p,
+                        spreadRadius: 1 * p,
+                      )
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.35),
+                        blurRadius: 14,
+                        offset: const Offset(0, 8),
+                      )
+                    ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                const SizedBox(height: 14),
+                _buildAvatar(alreadyWinked),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    firstName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFECECEC),
+                      height: 1.05,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                widget.user.name.split(' ').length > 1
-                    ? widget.user.name.split(' ').last
-                    : widget.user.department.split(' ').first,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.white38,
+                const SizedBox(height: 7),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    secondPart,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0x73FFFFFF),
+                      fontWeight: FontWeight.w500,
+                      height: 1.1,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
+        if (widget.user.isOnline)
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4ADE80),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppTheme.surface3, width: 1.5),
+              ),
+            ),
+          ),
         ..._particles.map(_buildParticle),
       ],
     );
@@ -1675,44 +1680,52 @@ class _RadarUserCardState extends State<_RadarUserCard>
 
   Widget _buildAvatar(bool alreadyWinked) {
     final p = _progressCtrl.value;
+    const double size = 62;
+    const double innerSize = 54;
+    const avatarBlue = Color(0xFF0058A8);
     return SizedBox(
-      width: 46,
-      height: 46,
+      width: size,
+      height: size,
       child: Stack(
         alignment: Alignment.center,
         children: [
           if (_showWink)
             Container(
-              width: 40,
-              height: 40,
+              width: innerSize,
+              height: innerSize,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.surface3,
-                border: Border.all(color: AppTheme.accent, width: 2),
+                border: Border.all(color: AppTheme.accent, width: 2.5),
                 boxShadow: [
                   BoxShadow(
                     color: AppTheme.accent.withOpacity(0.5),
                     blurRadius: 14,
-                  )
+                  ),
                 ],
               ),
               alignment: Alignment.center,
-              child: const Text('😉', style: TextStyle(fontSize: 18)),
+              child: const Text('😉', style: TextStyle(fontSize: 26)),
             ).animate().scale(
-                  begin: const Offset(1.5, 1.5),
+                  begin: const Offset(1.4, 1.4),
                   end: const Offset(1.0, 1.0),
                   duration: 400.ms,
                   curve: Curves.elasticOut,
                 )
           else
             Container(
-              width: 40,
-              height: 40,
+              width: innerSize,
+              height: innerSize,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.surface3,
                 border: Border.all(
-                  color: _isPressed ? Colors.transparent : Colors.white24,
+                  color: _isPressed
+                      ? Colors.transparent
+                      : alreadyWinked
+                          ? avatarBlue.withOpacity(0.48)
+                          : avatarBlue,
+                  width: 3,
                 ),
                 image: widget.user.profileImageUrl != null
                     ? DecorationImage(
@@ -1726,34 +1739,41 @@ class _RadarUserCardState extends State<_RadarUserCard>
               ),
               alignment: Alignment.center,
               child: widget.user.profileImageUrl == null
-                  ? Text(widget.user.avatar,
-                      style: const TextStyle(fontSize: 16))
+                  ? Text(
+                      widget.user.name.isNotEmpty
+                          ? widget.user.name[0].toUpperCase()
+                          : widget.user.avatar,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    )
                   : null,
             ),
           if (_isPressed)
             SizedBox(
-              width: 46,
-              height: 46,
+              width: size,
+              height: size,
               child: CircularProgressIndicator(
                 value: _isCompleted ? 1.0 : p,
-                strokeWidth: 3.0,
+                strokeWidth: 3,
                 backgroundColor: Colors.white10,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   _isCompleted
                       ? Colors.greenAccent
-                      : Color.lerp(AppTheme.accent, Colors.greenAccent, p)!,
+                      : Color.lerp(avatarBlue, Colors.greenAccent, p)!,
                 ),
                 strokeCap: StrokeCap.round,
               ),
             ),
-          // Already-winked indicator badge
           if (alreadyWinked && !_isPressed && !_showWink)
             Positioned(
               right: 0,
               bottom: 0,
               child: Container(
-                width: 17,
-                height: 17,
+                width: 18,
+                height: 18,
                 decoration: BoxDecoration(
                   color: AppTheme.surface2,
                   shape: BoxShape.circle,
@@ -1763,7 +1783,7 @@ class _RadarUserCardState extends State<_RadarUserCard>
                   ),
                 ),
                 alignment: Alignment.center,
-                child: const Text('👁️', style: TextStyle(fontSize: 8)),
+                child: const Text('👁️', style: TextStyle(fontSize: 9)),
               ),
             ),
         ],

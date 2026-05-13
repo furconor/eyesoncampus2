@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_data_provider.dart';
 import '../theme/app_theme.dart';
@@ -31,6 +32,8 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
   TimeOfDay _startTime = TimeOfDay.now();
   DateTime _endDate = DateTime.now().add(const Duration(hours: 2));
   TimeOfDay _endTime = TimeOfDay.fromDateTime(DateTime.now().add(const Duration(hours: 2)));
+  String? _eventImageUrl;
+  bool _isUploadingMedia = false;
 
   @override
   void dispose() {
@@ -82,6 +85,7 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_isUploadingMedia) return;
 
     final start = DateTime(_startDate.year, _startDate.month, _startDate.day, _startTime.hour, _startTime.minute);
     final end = DateTime(_endDate.year, _endDate.month, _endDate.day, _endTime.hour, _endTime.minute);
@@ -104,6 +108,7 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
       startAt: start,
       endAt: end,
       category: _selectedCategory,
+      imageUrl: _eventImageUrl,
     );
 
     if (mounted) {
@@ -126,6 +131,89 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
         );
       }
     }
+  }
+
+  Future<void> _pickEventMedia(ImageSource source) async {
+    Navigator.pop(context);
+    try {
+      setState(() => _isUploadingMedia = true);
+      final picker = ImagePicker();
+      final image = await picker.pickImage(
+        source: source,
+        imageQuality: 82,
+        maxWidth: 1600,
+      );
+      if (image == null) return;
+
+      final bytes = await image.readAsBytes();
+      final ext = image.name.split('.').last;
+      final url = await context.read<AppData>().uploadEventMediaBytes(bytes, ext);
+
+      if (!mounted) return;
+      if (url == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Medya yüklenemedi. Tekrar dene.'),
+            backgroundColor: AppTheme.red,
+          ),
+        );
+        return;
+      }
+
+      setState(() => _eventImageUrl = url);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Medya seçilemedi: $e'),
+          backgroundColor: AppTheme.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingMedia = false);
+    }
+  }
+
+  void _showMediaPicker() {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined, color: AppTheme.text),
+              title: const Text('Kamera', style: TextStyle(color: AppTheme.text)),
+              onTap: () => _pickEventMedia(ImageSource.camera),
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.photo_library_outlined, color: AppTheme.text),
+              title: const Text('Galeri', style: TextStyle(color: AppTheme.text)),
+              onTap: () => _pickEventMedia(ImageSource.gallery),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -194,6 +282,8 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
                 hint: 'Örn: ODTÜ Devrim',
                 validator: (v) => v!.isEmpty ? 'Gerekli' : null,
               ),
+              const SizedBox(height: 20),
+              _buildMediaPicker(),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -305,7 +395,7 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : () {
+                  onPressed: (_isSubmitting || _isUploadingMedia) ? null : () {
                     HapticFeedback.lightImpact();
                     _submit();
                   },
@@ -318,9 +408,11 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
                   ),
                   child: _isSubmitting
                       ? const CircularProgressIndicator(color: Colors.black)
-                      : const Text(
-                          'ETKİNLİĞİ OLUŞTUR',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                      : Text(
+                          _isUploadingMedia
+                              ? 'MEDYA YÜKLENİYOR...'
+                              : 'ETKİNLİĞİ OLUŞTUR',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                 ),
               ),
@@ -329,6 +421,94 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMediaPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'MEDYA',
+          style: TextStyle(
+            fontFamily: 'Space Mono',
+            fontSize: 10,
+            letterSpacing: 2,
+            color: AppTheme.accent,
+          ),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: _isUploadingMedia ? null : _showMediaPicker,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            height: 136,
+            decoration: BoxDecoration(
+              color: AppTheme.surface3,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _eventImageUrl == null
+                    ? AppTheme.border.withOpacity(0.4)
+                    : AppTheme.accent.withOpacity(0.45),
+              ),
+              image: _eventImageUrl == null
+                  ? null
+                  : DecorationImage(
+                      image: NetworkImage(_eventImageUrl!),
+                      fit: BoxFit.cover,
+                    ),
+            ),
+            child: _eventImageUrl == null
+                ? Center(
+                    child: _isUploadingMedia
+                        ? const CircularProgressIndicator(
+                            color: AppTheme.accent,
+                          )
+                        : const Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.add_photo_alternate_outlined,
+                                color: AppTheme.accent,
+                                size: 30,
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Kamera veya galeriden medya ekle',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                  )
+                : Stack(
+                    children: [
+                      Positioned(
+                        right: 10,
+                        top: 10,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _eventImageUrl = null),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ],
     );
   }
 

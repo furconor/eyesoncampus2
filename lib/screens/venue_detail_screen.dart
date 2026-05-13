@@ -23,6 +23,23 @@ class VenueDetailScreen extends StatefulWidget {
 
 class _VenueDetailScreenState extends State<VenueDetailScreen> {
   bool _isCheckingIn = false;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+  bool _searchVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(() {
+      setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,11 +47,16 @@ class _VenueDetailScreenState extends State<VenueDetailScreen> {
     final me = provider.currentUser;
     final isReviewer = me?.name == 'Apple Reviewer';
     List<User> usersInVenue = provider.getUsersAtVenue(widget.venue.name);
-    
+
+    final filteredUsers = _searchQuery.isEmpty
+        ? usersInVenue
+        : usersInVenue.where((u) =>
+            '${u.name} ${u.department}'.toLowerCase().contains(_searchQuery)).toList();
+
     final isCheckedIn = provider.currentUser?.campusZone == widget.venue.name;
 
     return Scaffold(
-      backgroundColor: Colors.black, // Dark premium background
+      backgroundColor: Colors.black,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -43,22 +65,73 @@ class _VenueDetailScreenState extends State<VenueDetailScreen> {
             child: _buildVenueInfo(provider, usersInVenue),
           ),
           SliverPadding(
-            padding: const EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 8),
+            padding: const EdgeInsets.only(left: 24, right: 12, top: 16, bottom: 8),
             sliver: SliverToBoxAdapter(
-              child: const Text(
-                'ŞU AN BURADAKİLER',
-                style: TextStyle(
-                  fontFamily: 'Space Mono',
-                  fontSize: 10,
-                  letterSpacing: 2,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.accent,
-                ),
-              ).animate().fadeIn(delay: 300.ms),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _searchVisible
+                        ? TextField(
+                            controller: _searchCtrl,
+                            autofocus: true,
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                            cursorColor: AppTheme.accent,
+                            decoration: const InputDecoration(
+                              hintText: 'İsim veya bölüm ara...',
+                              hintStyle: TextStyle(color: Colors.white38, fontSize: 12),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          )
+                        : const Text(
+                            'ŞU AN BURADAKİLER',
+                            style: TextStyle(
+                              fontFamily: 'Space Mono',
+                              fontSize: 10,
+                              letterSpacing: 2,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.accent,
+                            ),
+                          ).animate().fadeIn(delay: 300.ms),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        _searchVisible = !_searchVisible;
+                        if (!_searchVisible) _searchCtrl.clear();
+                      });
+                    },
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: _searchVisible
+                            ? AppTheme.accent.withOpacity(0.14)
+                            : AppTheme.surface3,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _searchVisible
+                              ? AppTheme.accent.withOpacity(0.45)
+                              : Colors.white.withOpacity(0.10),
+                        ),
+                      ),
+                      child: Icon(
+                        _searchVisible ? Icons.close_rounded : Icons.search_rounded,
+                        size: 17,
+                        color: _searchVisible ? AppTheme.accent : Colors.white70,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+              ),
             ),
           ),
-          _buildUsersList(context, usersInVenue, isCheckedIn),
-          const SliverToBoxAdapter(child: SizedBox(height: 100)), // Space for bottom action
+          _buildUsersList(context, filteredUsers, isCheckedIn),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -316,19 +389,6 @@ class _VenueDetailScreenState extends State<VenueDetailScreen> {
                             user.department,
                             style: const TextStyle(fontFamily: 'Space Mono', color: Colors.white54, fontSize: 10),
                           ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppTheme.accent.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          Text('${user.points}', style: const TextStyle(fontFamily: 'Space Mono', color: AppTheme.accent, fontWeight: FontWeight.bold, fontSize: 12)),
-                          const Icon(Icons.bolt, color: AppTheme.accent, size: 14),
                         ],
                       ),
                     ),

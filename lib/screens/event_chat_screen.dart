@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../providers/app_data_provider.dart';
 import '../models/app_models.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:image_picker/image_picker.dart';
 import '../widgets/glass_container.dart';
 import 'package:flutter/services.dart';
 import 'other_profile_screen.dart';
@@ -22,6 +23,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
   final TextEditingController _msgController = TextEditingController();
   final FocusNode _msgFocusNode = FocusNode();
   String? _pendingImageUrl;
+  bool _isUploadingMedia = false;
 
   @override
   void initState() {
@@ -39,6 +41,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
   }
 
   void _sendMessage() {
+    if (_isUploadingMedia) return;
     if (_msgController.text.trim().isEmpty && _pendingImageUrl == null) return;
     
     final text = _msgController.text.trim();
@@ -111,7 +114,49 @@ class _EventChatScreenState extends State<EventChatScreen> {
     );
   }
 
+  Future<void> _pickChatMedia(ImageSource source) async {
+    Navigator.pop(context);
+    try {
+      setState(() => _isUploadingMedia = true);
+      final picker = ImagePicker();
+      final image = await picker.pickImage(
+        source: source,
+        imageQuality: 82,
+        maxWidth: 1600,
+      );
+      if (image == null) return;
+
+      final bytes = await image.readAsBytes();
+      final ext = image.name.split('.').last;
+      final url = await context.read<AppData>().uploadEventMediaBytes(bytes, ext);
+
+      if (!mounted) return;
+      if (url == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Medya yüklenemedi. Tekrar dene.'),
+            backgroundColor: AppTheme.red,
+          ),
+        );
+        return;
+      }
+
+      setState(() => _pendingImageUrl = url);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Medya seçilemedi: $e'),
+          backgroundColor: AppTheme.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingMedia = false);
+    }
+  }
+
   void _onAddPhoto() {
+    if (_isUploadingMedia) return;
     HapticFeedback.lightImpact();
     showModalBottomSheet(
       context: context,
@@ -132,18 +177,14 @@ class _EventChatScreenState extends State<EventChatScreen> {
               leading: const Icon(Icons.camera_alt_outlined, color: AppTheme.text),
               title: const Text('Kamera', style: TextStyle(color: AppTheme.text)),
               onTap: () {
-                Navigator.pop(context);
-                setState(() => _pendingImageUrl = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop');
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fotoğraf eklendi (mock)')));
+                _pickChatMedia(ImageSource.camera);
               },
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined, color: AppTheme.text),
               title: const Text('Galeri', style: TextStyle(color: AppTheme.text)),
               onTap: () {
-                Navigator.pop(context);
-                setState(() => _pendingImageUrl = 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=500&auto=format&fit=crop');
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fotoğraf eklendi (mock)')));
+                _pickChatMedia(ImageSource.gallery);
               },
             ),
             const SizedBox(height: 16),
@@ -299,7 +340,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
                     } else {
                       await provider.joinEvent(widget.event.id, false);
                     }
-                    Navigator.pop(context);
+                    if (context.mounted) Navigator.pop(context);
                   }
                 },
                 child: Container(
@@ -317,18 +358,6 @@ class _EventChatScreenState extends State<EventChatScreen> {
                       Text(buttonText, style: const TextStyle(fontFamily: 'Space Mono', fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.red)),
                     ],
                   ),
-                );
-                if (confirm == true && context.mounted) {
-                  await provider.joinEvent(widget.event.id, false);
-                  if (context.mounted) Navigator.pop(context);
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: AppTheme.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppTheme.red.withOpacity(0.4)),
                 ),
               );
             }),
@@ -478,6 +507,30 @@ class _EventChatScreenState extends State<EventChatScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (_isUploadingMedia)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(14, 12, 14, 8),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.accent,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Medya yükleniyor...',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (_pendingImageUrl != null)
                     Stack(
                       children: [
@@ -511,7 +564,7 @@ class _EventChatScreenState extends State<EventChatScreen> {
                     children: [
                       IconButton(
                         icon: Icon(Icons.add_photo_alternate_outlined, color: _pendingImageUrl != null ? AppTheme.muted : AppTheme.accent),
-                        onPressed: _onAddPhoto,
+                        onPressed: _isUploadingMedia ? null : _onAddPhoto,
                       ),
                       Expanded(
                         child: TextField(

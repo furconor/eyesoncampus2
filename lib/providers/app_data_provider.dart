@@ -930,6 +930,7 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
     required DateTime startAt,
     required DateTime endAt,
     String? category,
+    String? imageUrl,
   }) async {
     await _recalculateEnergy();
     if (_currentUser == null) return 'Kullanıcı bulunamadı.';
@@ -950,6 +951,7 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
         endAt: endAt,
         universityId: _currentUser?.universityId,
         category: category,
+        imageUrl: imageUrl,
       );
 
       if (eventId != null) {
@@ -1036,6 +1038,11 @@ class AppData extends ChangeNotifier with WidgetsBindingObserver {
   Future<List<User>> getEventAttendees(String eventId) async {
     final supabase = SupabaseService();
     return await supabase.getEventAttendees(eventId);
+  }
+
+  Future<String?> uploadEventMediaBytes(Uint8List bytes, String extension) async {
+    final supabase = SupabaseService();
+    return await supabase.uploadEventMediaBytes(bytes, extension);
   }
 
   // --- EVENT MESSAGES ---

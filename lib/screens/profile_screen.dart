@@ -29,6 +29,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context.read<AppData>().refreshProfileStats();
     });
   }
+
+  void _reportDiaryPhoto(BuildContext context, String photoUrl) {
+    HapticFeedback.lightImpact();
+    context.read<AppData>().reportContent(
+          photoUrl,
+          'Kampüs günlüğü fotoğrafı şikayeti',
+        );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Fotoğraf şikayet edildi. İncelemeye alacağız.'),
+        backgroundColor: AppTheme.accent,
+      ),
+    );
+  }
   
   @override
   Widget build(BuildContext context) {
@@ -476,6 +490,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           backgroundColor: Colors.transparent,
                           elevation: 0,
                           iconTheme: const IconThemeData(color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 8)]),
+                          actions: [
+                            TextButton.icon(
+                              onPressed: () =>
+                                  _reportDiaryPhoto(context, photos[index]),
+                              icon: const Icon(
+                                Icons.report_gmailerrorred_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                'Şikayet Et',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                         ),
                         body: InteractiveViewer(
                           panEnabled: true,

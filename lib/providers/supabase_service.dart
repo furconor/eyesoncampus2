@@ -371,6 +371,29 @@ class SupabaseService extends ChangeNotifier {
     }
   }
 
+  // EVENT MEDIA YÜKLE
+  Future<String?> uploadEventMediaBytes(Uint8List bytes, String extension) async {
+    if (!isAuthenticated) return null;
+    try {
+      final safeExtension = extension.toLowerCase() == 'png' ? 'png' : 'jpg';
+      final contentType = safeExtension == 'png' ? 'image/png' : 'image/jpeg';
+      final String fileName =
+          '${currentUserId}_event_${DateTime.now().millisecondsSinceEpoch}.$safeExtension';
+      final String path = 'events/$fileName';
+
+      await _client.storage.from('app_data').uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(contentType: contentType, upsert: true),
+          );
+
+      return _client.storage.from('app_data').getPublicUrl(path);
+    } catch (e) {
+      debugPrint('Error uploading event media: $e');
+      return null;
+    }
+  }
+
   // DIARY PHOTO SIL
   Future<void> deleteDiaryPhoto(String url) async {
     try {
@@ -1351,6 +1374,7 @@ class SupabaseService extends ChangeNotifier {
     required DateTime endAt,
     String? universityId,
     String? category,
+    String? imageUrl,
   }) async {
     if (!isAuthenticated) throw Exception('Auth hatası');
     
@@ -1361,7 +1385,7 @@ class SupabaseService extends ChangeNotifier {
       'is_live': isLive,
       'university_id': universityId,
       'date': startAt.toIso8601String(),
-      'image_url': '', 
+      'image_url': imageUrl ?? '',
       'created_by': currentUserId,
       'start_at': startAt.toIso8601String(),
       'end_at': endAt.toIso8601String(),
